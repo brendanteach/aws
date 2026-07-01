@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 11 — CloudWatch: Monitoring a Financial App</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --red: #c0392b; --yellow: #f39c12; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .kw { color: #569cd6; } .str { color: #ce9178; } .key { color: #9cdcfe; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .dim { color: #888; }
+
+  /* Three pillars */
+  .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem; margin: 1.2rem 0 1.8rem; }
+  .pillar { border: 1px solid var(--border); border-radius: 5px; padding: 0.85rem 1rem; background: white; }
+  .pillar.active { border-color: var(--aws-orange); }
+  .pi-name  { font-weight: bold; color: var(--ink); font-size: 0.92rem; margin-bottom: 0.2rem; }
+  .pi-desc  { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+  .pi-eg    { font-size: 0.75rem; color: var(--aws-orange); margin-top: 0.3rem; font-family: monospace; }
+
+  /* Alarm severity table rows */
+  .sev-crit { background: #fdecea !important; }
+  .sev-warn { background: #fff8e6 !important; }
+  .sev-info { background: #eaf0fb !important; }
+  .badge { display: inline-block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; padding: 0.1rem 0.4rem; border-radius: 3px; text-transform: uppercase; }
+  .badge.crit { background: #c0392b; color: white; }
+  .badge.warn { background: #f39c12; color: white; }
+  .badge.info { background: #2471a3; color: white; }
+
+  /* Dashboard mockup */
+  .dashboard { border: 2px solid var(--ink); border-radius: 6px; padding: 1rem; margin: 1.5rem 0; background: #1a1a2e; color: #e0e0e0; font-family: monospace; font-size: 0.75rem; }
+  .db-title  { font-family: sans-serif; font-size: 0.8rem; font-weight: bold; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.8rem; }
+  .db-grid   { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; }
+  .db-widget { background: #252540; border: 1px solid #333; border-radius: 4px; padding: 0.6rem 0.8rem; }
+  .db-w-title { color: #aaa; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
+  .db-w-val  { font-size: 1.3rem; font-weight: bold; }
+  .db-w-sub  { font-size: 0.65rem; color: #666; margin-top: 0.1rem; }
+  .ok    { color: #4ec9b0; }
+  .alarm { color: #f14c4c; }
+  .warn  { color: #f0c040; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.88rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .azure { color: var(--azure-blue); font-weight: bold; } .aws { color: var(--aws-orange); font-weight: bold; } .note { color: var(--muted); font-size: 0.83rem; }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+<header>
+  <div class="lesson-number">Lesson 11 · Observability</div>
+  <h1>CloudWatch: Monitoring a Financial App</h1>
+  <div class="subtitle">Logs, metrics, alarms, and dashboards — knowing what your system is doing at all times</div>
+</header>
+
+<p>A financial app that goes wrong silently is worse than one that fails loudly. CloudWatch is AWS's native observability platform. It collects logs from every service, tracks metrics, fires alarms when thresholds are crossed, and visualizes everything on dashboards. This lesson covers what to monitor, what thresholds to set, and how to get paged before your users notice a problem.</p>
+
+<h2>CloudWatch Has Three Distinct Capabilities</h2>
+
+<div class="pillars">
+  <div class="pillar active">
+    <div class="pi-name">Logs</div>
+    <div class="pi-desc">Every service's stdout/stderr, structured as searchable log events. ECS containers, Lambda functions, RDS, and ALB all write here.</div>
+    <div class="pi-eg">/ecs/finapp-api<br>/aws/lambda/trade-confirm</div>
+  </div>
+  <div class="pillar active">
+    <div class="pi-name">Metrics</div>
+    <div class="pi-desc">Numeric time-series data. CPU%, memory, request count, error rate, queue depth. AWS services emit metrics automatically; your app can emit custom ones.</div>
+    <div class="pi-eg">ECS/CPUUtilization<br>RDS/FreeableMemory</div>
+  </div>
+  <div class="pillar active">
+    <div class="pi-name">Alarms</div>
+    <div class="pi-desc">Rules that watch a metric and change state (OK / ALARM / INSUFFICIENT_DATA). Trigger SNS notifications, Auto Scaling actions, or EC2 recovery.</div>
+    <div class="pi-eg">CPU > 80% for 5 min<br>→ SNS → email / PagerDuty</div>
+  </div>
+</div>
+
+<div class="callout info">
+  <strong>Azure analogy: Azure Monitor + Application Insights</strong>
+  CloudWatch Logs ≈ Azure Monitor Logs (Log Analytics workspace). CloudWatch Metrics ≈ Azure Monitor Metrics. CloudWatch Alarms ≈ Azure Monitor Alerts. AWS X-Ray ≈ Application Insights distributed tracing. The main difference: Azure splits monitoring across multiple products; CloudWatch does it all in one place with a consistent API.
+</div>
+
+<h2>Structured Logging — Do This from Day One</h2>
+
+<p>Log lines as plain text are hard to query. Log as JSON and CloudWatch Logs Insights can query them like a database.</p>
+
+<pre><span class="file-label">Python FastAPI — structured JSON logging</span>
+<span class="kw">import</span> json, logging, time
+
+<span class="kw">class</span> <span class="key">JsonFormatter</span>(logging.Formatter):
+    <span class="kw">def</span> <span class="key">format</span>(self, record):
+        <span class="kw">return</span> json.dumps({
+            <span class="str">"timestamp"</span>: self.formatTime(record),
+            <span class="str">"level"</span>:     record.levelname,
+            <span class="str">"message"</span>:   record.getMessage(),
+            <span class="str">"logger"</span>:    record.name,
+            <span class="cmt"># Add request context via middleware:</span>
+            <span class="str">"user_id"</span>:   getattr(record, <span class="str">"user_id"</span>, None),
+            <span class="str">"trade_id"</span>:  getattr(record, <span class="str">"trade_id"</span>, None),
+            <span class="str">"duration_ms"</span>: getattr(record, <span class="str">"duration_ms"</span>, None),
+        })
+
+<span class="cmt"># Query in CloudWatch Logs Insights:</span>
+<span class="cmt"># fields @timestamp, user_id, trade_id, duration_ms</span>
+<span class="cmt"># | filter level = "ERROR"</span>
+<span class="cmt"># | sort @timestamp desc</span>
+<span class="cmt"># | limit 50</span></pre>
+
+<h2>The Complete Alarm Checklist</h2>
+
+<p>These are the alarms every financial app deployment must have. Configure them all before going live.</p>
+
+<table>
+  <thead><tr><th>Severity</th><th>Service</th><th>Metric</th><th>Threshold</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr class="sev-crit">
+      <td><span class="badge crit">Critical</span></td>
+      <td>ALB</td>
+      <td><code>HTTPCode_Target_5XX_Count</code></td>
+      <td>&gt; 10 in 1 min</td>
+      <td>Page on-call immediately — API is returning server errors</td>
+    </tr>
+    <tr class="sev-crit">
+      <td><span class="badge crit">Critical</span></td>
+      <td>RDS</td>
+      <td><code>FreeableMemory</code></td>
+      <td>&lt; 200 MB</td>
+      <td>Database about to OOM — immediate scale-up or query investigation</td>
+    </tr>
+    <tr class="sev-crit">
+      <td><span class="badge crit">Critical</span></td>
+      <td>SQS DLQ</td>
+      <td><code>ApproximateNumberOfMessagesVisible</code></td>
+      <td>&gt; 0</td>
+      <td>Failed trade event — investigate immediately, do not let accumulate</td>
+    </tr>
+    <tr class="sev-crit">
+      <td><span class="badge crit">Critical</span></td>
+      <td>RDS</td>
+      <td><code>DatabaseConnections</code></td>
+      <td>&gt; 80% of max_connections</td>
+      <td>Connection exhaustion imminent — check RDS Proxy or scale instance</td>
+    </tr>
+    <tr class="sev-warn">
+      <td><span class="badge warn">Warning</span></td>
+      <td>ECS</td>
+      <td><code>CPUUtilization</code></td>
+      <td>&gt; 70% for 5 min</td>
+      <td>Scale out ECS service — approaching saturation</td>
+    </tr>
+    <tr class="sev-warn">
+      <td><span class="badge warn">Warning</span></td>
+      <td>ECS</td>
+      <td><code>MemoryUtilization</code></td>
+      <td>&gt; 80% for 5 min</td>
+      <td>Risk of OOM task kill — scale out or increase task memory</td>
+    </tr>
+    <tr class="sev-warn">
+      <td><span class="badge warn">Warning</span></td>
+      <td>RDS</td>
+      <td><code>CPUUtilization</code></td>
+      <td>&gt; 70% for 10 min</td>
+      <td>Slow queries or insufficient instance size — check Performance Insights</td>
+    </tr>
+    <tr class="sev-warn">
+      <td><span class="badge warn">Warning</span></td>
+      <td>Lambda</td>
+      <td><code>Errors</code></td>
+      <td>&gt; 0</td>
+      <td>Lambda function failed — check logs before DLQ fills</td>
+    </tr>
+    <tr class="sev-warn">
+      <td><span class="badge warn">Warning</span></td>
+      <td>ALB</td>
+      <td><code>TargetResponseTime</code></td>
+      <td>&gt; 2 seconds (p99)</td>
+      <td>API latency degrading — investigate slow queries or ECS saturation</td>
+    </tr>
+    <tr class="sev-info">
+      <td><span class="badge info">Info</span></td>
+      <td>ECS</td>
+      <td><code>RunningTaskCount</code></td>
+      <td>&lt; desired count</td>
+      <td>Tasks crashing or failing health checks — deployment issue</td>
+    </tr>
+    <tr class="sev-info">
+      <td><span class="badge info">Info</span></td>
+      <td>RDS</td>
+      <td><code>FreeStorageSpace</code></td>
+      <td>&lt; 10 GB</td>
+      <td>Disk filling — enable storage autoscaling or increase allocated storage</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Creating an Alarm in Terraform</h2>
+
+<pre><span class="file-label">modules/monitoring/alarms.tf  (excerpt)</span>
+<span class="key">resource</span> <span class="str">"aws_cloudwatch_metric_alarm"</span> <span class="str">"api_5xx"</span> {
+  alarm_name          = <span class="str">"finapp-api-5xx-${var.environment}"</span>
+  alarm_description   = <span class="str">"API returning 5xx errors"</span>
+  namespace           = <span class="str">"AWS/ApplicationELB"</span>
+  metric_name         = <span class="str">"HTTPCode_Target_5XX_Count"</span>
+  dimensions          = { LoadBalancer = <span class="key">aws_lb.main.arn_suffix</span> }
+
+  statistic           = <span class="str">"Sum"</span>
+  period              = <span class="num">60</span>     <span class="cmt"># 1-minute window</span>
+  evaluation_periods  = <span class="num">1</span>
+  threshold           = <span class="num">10</span>
+  comparison_operator = <span class="str">"GreaterThanThreshold"</span>
+  treat_missing_data  = <span class="str">"notBreaching"</span>  <span class="cmt"># no data = no traffic = OK</span>
+
+  alarm_actions = [<span class="key">aws_sns_topic.oncall.arn</span>]
+  ok_actions    = [<span class="key">aws_sns_topic.oncall.arn</span>]  <span class="cmt"># notify on recovery too</span>
+}
+
+<span class="key">resource</span> <span class="str">"aws_cloudwatch_metric_alarm"</span> <span class="str">"rds_freeable_memory"</span> {
+  alarm_name         = <span class="str">"finapp-rds-low-memory-${var.environment}"</span>
+  namespace          = <span class="str">"AWS/RDS"</span>
+  metric_name        = <span class="str">"FreeableMemory"</span>
+  dimensions         = { DBInstanceIdentifier = <span class="key">aws_db_instance.postgres.id</span> }
+  statistic          = <span class="str">"Average"</span>
+  period             = <span class="num">300</span>
+  evaluation_periods = <span class="num">2</span>
+  threshold          = <span class="num">209715200</span>   <span class="cmt"># 200 MB in bytes</span>
+  comparison_operator = <span class="str">"LessThanThreshold"</span>
+  alarm_actions      = [<span class="key">aws_sns_topic.oncall.arn</span>]
+}</pre>
+
+<h2>SNS — The Alarm Notification Router</h2>
+
+<p>Alarms don't notify humans directly — they publish to an <strong>SNS Topic</strong> (Simple Notification Service). SNS then fans out to email, PagerDuty, Slack, or any HTTPS endpoint.</p>
+
+<pre><span class="cmt">SNS Topic: finapp-oncall-prod
+  Subscriptions:
+    → Email: oncall@finapp.com
+    → HTTPS: https://events.pagerduty.com/integration/xxx/enqueue
+    → Email: slack-alerts-webhook (via email-to-Slack integration)</span></pre>
+
+<h2>Custom Metrics from Your Application</h2>
+
+<p>AWS services emit metrics automatically, but your application logic can emit its own. These are the most valuable signals for a financial app:</p>
+
+<pre><span class="file-label">Python — emitting custom CloudWatch metrics</span>
+<span class="kw">import</span> boto3
+cw = boto3.client(<span class="str">"cloudwatch"</span>)
+
+<span class="kw">def</span> <span class="key">record_trade_metric</span>(symbol: str, quantity: int, latency_ms: float):
+    cw.put_metric_data(
+        Namespace=<span class="str">"FinApp/Trading"</span>,
+        MetricData=[
+            {
+                <span class="str">"MetricName"</span>: <span class="str">"TradeSubmitted"</span>,
+                <span class="str">"Value"</span>: <span class="num">1</span>, <span class="str">"Unit"</span>: <span class="str">"Count"</span>,
+                <span class="str">"Dimensions"</span>: [{<span class="str">"Name"</span>: <span class="str">"Symbol"</span>, <span class="str">"Value"</span>: symbol}]
+            },
+            {
+                <span class="str">"MetricName"</span>: <span class="str">"TradeLatencyMs"</span>,
+                <span class="str">"Value"</span>: latency_ms, <span class="str">"Unit"</span>: <span class="str">"Milliseconds"</span>
+            }
+        ]
+    )
+
+<span class="cmt"># Now alarm on FinApp/Trading TradeSubmitted dropping to 0 during market hours</span>
+<span class="cmt"># → indicates broken trade flow before users report it</span></pre>
+
+<h2>The CloudWatch Dashboard Layout</h2>
+
+<div class="dashboard">
+  <div class="db-title">FinApp Production — Operations Dashboard</div>
+  <div class="db-grid">
+    <div class="db-widget">
+      <div class="db-w-title">API 5xx Rate</div>
+      <div class="db-w-val ok">0.02%</div>
+      <div class="db-w-sub">last 5 min · ALB</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">API p99 Latency</div>
+      <div class="db-w-val warn">1,840 ms</div>
+      <div class="db-w-sub">last 5 min · ALB</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">ECS CPU</div>
+      <div class="db-w-val ok">34%</div>
+      <div class="db-w-sub">avg across tasks</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">RDS CPU</div>
+      <div class="db-w-val ok">18%</div>
+      <div class="db-w-sub">primary instance</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">DB Connections</div>
+      <div class="db-w-val ok">42 / 171</div>
+      <div class="db-w-sub">via RDS Proxy</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">DLQ Depth</div>
+      <div class="db-w-val alarm">3 ⚠</div>
+      <div class="db-w-sub">trade-events-dlq</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">Trades / min</div>
+      <div class="db-w-val ok">847</div>
+      <div class="db-w-sub">FinApp/Trading</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">Lambda Errors</div>
+      <div class="db-w-val alarm">3 ⚠</div>
+      <div class="db-w-sub">last 15 min</div>
+    </div>
+    <div class="db-widget">
+      <div class="db-w-title">RDS Free Memory</div>
+      <div class="db-w-val ok">2.1 GB</div>
+      <div class="db-w-sub">db.t3.medium</div>
+    </div>
+  </div>
+</div>
+
+<h2>X-Ray — Distributed Tracing</h2>
+
+<p>CloudWatch tells you <em>that</em> something is slow. <strong>X-Ray</strong> tells you <em>where</em> the latency is. It traces a request through CloudFront → ALB → ECS → RDS, showing a waterfall of every segment and its duration.</p>
+
+<pre><span class="file-label">FastAPI + X-Ray instrumentation</span>
+<span class="cmt"># pip install aws-xray-sdk</span>
+<span class="kw">from</span> aws_xray_sdk.core <span class="kw">import</span> xray_recorder, patch_all
+patch_all()  <span class="cmt"># auto-instruments boto3, requests, psycopg2, SQLAlchemy</span>
+
+<span class="cmt"># Now every outbound call (RDS query, S3 call, SQS send)</span>
+<span class="cmt"># appears as a subsegment in the X-Ray trace</span>
+
+<span class="cmt"># In X-Ray console: see exactly which SQL query took 800ms</span>
+<span class="cmt"># out of a 900ms total API response time</span></pre>
+
+<h2>Azure → AWS Observability Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Difference</th></tr></thead>
+  <tbody>
+    <tr><td>Log aggregation</td><td class="azure">Azure Monitor Logs (Log Analytics)</td><td class="aws">CloudWatch Logs</td><td class="note">Both use query languages (KQL vs CloudWatch Logs Insights). CloudWatch Logs Insights is simpler but less powerful than KQL.</td></tr>
+    <tr><td>Metrics</td><td class="azure">Azure Monitor Metrics</td><td class="aws">CloudWatch Metrics</td><td class="note">Same concept. AWS default retention: 15 months. Custom metrics: 14 days (free tier), longer with extended retention.</td></tr>
+    <tr><td>Alerts</td><td class="azure">Azure Monitor Alerts</td><td class="aws">CloudWatch Alarms + SNS</td><td class="note">Azure alerts send directly to action groups. AWS alarms send to SNS, which routes to email/PagerDuty/Slack.</td></tr>
+    <tr><td>Dashboards</td><td class="azure">Azure Monitor Workbooks / Dashboards</td><td class="aws">CloudWatch Dashboards</td><td class="note">Both are widget-based. CloudWatch dashboards are simpler; Workbooks are more flexible for multi-step analysis.</td></tr>
+    <tr><td>Distributed tracing</td><td class="azure">Application Insights</td><td class="aws">AWS X-Ray</td><td class="note">App Insights has richer APM features (dependency tracking, user flows). X-Ray is simpler but integrates deeply with Lambda, ECS, and API Gateway.</td></tr>
+    <tr><td>Log query language</td><td class="azure">KQL (Kusto Query Language)</td><td class="aws">CloudWatch Logs Insights</td><td class="note">KQL is more expressive. CloudWatch Logs Insights covers 80% of real-world queries with a simpler syntax.</td></tr>
+    <tr><td>Notification routing</td><td class="azure">Action Groups</td><td class="aws">SNS Topics</td><td class="note">Both fan out to email, webhooks, PagerDuty. SNS can also trigger Lambda for custom routing logic.</td></tr>
+  </tbody>
+</table>
+
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+
+  <div class="question" id="q1">
+    <p>1. Your CloudWatch alarm for RDS FreeableMemory has <code>treat_missing_data = "notBreaching"</code>. At 3 AM, RDS has no traffic and CloudWatch receives no data points. What state is the alarm in?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> ALARM — missing data is treated as a breach</label>
+      <label><input type="radio" name="q1" value="b"> OK — missing data is treated as not breaching the threshold</label>
+      <label><input type="radio" name="q1" value="c"> INSUFFICIENT_DATA — the alarm suspends until data resumes</label>
+      <label><input type="radio" name="q1" value="d"> The alarm is disabled during periods with no data</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. treat_missing_data = notBreaching means missing data points are evaluated as if the metric were within the threshold — resulting in OK state. This is the right setting for metrics that simply have no data when a service is idle.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. You want to alert when your API p99 latency exceeds 2 seconds. Which CloudWatch metric and statistic should you use?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> AWS/ApplicationELB · TargetResponseTime · Average</label>
+      <label><input type="radio" name="q2" value="b"> AWS/ApplicationELB · TargetResponseTime · p99</label>
+      <label><input type="radio" name="q2" value="c"> AWS/ECS · CPUUtilization · Maximum</label>
+      <label><input type="radio" name="q2" value="d"> AWS/ApplicationELB · HTTPCode_Target_2XX_Count · Sum</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. TargetResponseTime with the p99 statistic gives the 99th percentile response time — the latency experienced by your slowest 1% of requests. Average latency hides tail latency problems that affect real users.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Why should you emit a custom CloudWatch metric for <em>TradeSubmitted count</em> and alarm when it drops to 0 during market hours?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> To bill users per trade using the CloudWatch metric as the billing record</label>
+      <label><input type="radio" name="q3" value="b"> A drop to zero detects a broken trade flow before users report it — AWS infrastructure metrics won't catch a bug that returns 200 with an empty response</label>
+      <label><input type="radio" name="q3" value="c"> CloudWatch requires custom metrics before it can monitor ECS services</label>
+      <label><input type="radio" name="q3" value="d"> Custom metrics replace the need for application logging</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. Infrastructure metrics (CPU, memory, 5xx rate) can all look healthy while a bug silently breaks the trade submission logic — returning 200 OK with no actual trade recorded. A business-level metric like TradeSubmitted catching zero detects this class of failure immediately.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. X-Ray shows your API p99 latency is 1,800ms. The X-Ray waterfall shows the ECS segment takes 50ms and a "psycopg2" subsegment takes 1,700ms. What does this tell you?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> The ECS container is undersized and needs more CPU</label>
+      <label><input type="radio" name="q4" value="b"> A PostgreSQL query is taking 1,700ms — the bottleneck is in the database, not the application code</label>
+      <label><input type="radio" name="q4" value="c"> The ALB is adding 1,700ms of overhead before routing to ECS</label>
+      <label><input type="radio" name="q4" value="d"> The RDS Proxy is saturated and needs more connections</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. psycopg2 is the PostgreSQL Python driver — a 1,700ms subsegment means a database query took 1.7 seconds. The next step is RDS Performance Insights to find the specific slow query and add an index or rewrite it.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  CloudWatch = <strong>Logs</strong> (structured JSON, queryable) + <strong>Metrics</strong> (time-series, AWS-native and custom) + <strong>Alarms</strong> (threshold rules → SNS → on-call). The non-negotiable alarms: <code>5XX_Count</code>, <code>FreeableMemory</code>, <code>DLQ depth</code>, <code>DatabaseConnections</code>. Add custom metrics for business signals (TradeSubmitted count). Use <strong>X-Ray</strong> to locate latency — it tells you whether slowness is in your code, a database query, or an external API call. Log as <strong>structured JSON</strong> so CloudWatch Logs Insights can query across fields.
+</div>
+
+<div class="lesson-nav">
+  <a href="0010-sqs-lambda.html">← L10: SQS + Lambda</a> ·
+  <a href="0012-cicd.html">L12: CI/CD →</a><br><br>
+  <strong>Ask your teacher:</strong> Composite alarms, Contributor Insights for top-N analysis, CloudWatch Logs Insights query examples, or setting up a PagerDuty integration — ask in the terminal.
+</div>
+<footer>
+  Sources: <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" target="_blank">Amazon CloudWatch User Guide</a> · <a href="https://docs.aws.amazon.com/xray/latest/devguide/aws-xray.html" target="_blank">AWS X-Ray Developer Guide</a> · <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html" target="_blank">CloudWatch Logs Insights Syntax</a>
+</footer>
+</article>
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const sel = document.querySelector('input[name="'+qid+'"]:checked');
+  const fb  = document.getElementById(qid+'-feedback');
+  if (!sel) { fb.textContent='Please select an answer.'; fb.className='feedback wrong'; return; }
+  fb.textContent = (sel.value===correctVal ? '✓ '+correctMsg : '✗ '+wrongMsg);
+  fb.className   = 'feedback '+(sel.value===correctVal ? 'correct' : 'wrong');
+}
+</script>
+</body>
+</html>

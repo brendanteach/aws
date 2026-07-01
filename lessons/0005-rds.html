@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 5 — RDS: Managed PostgreSQL for a Financial App</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .key { color: #9cdcfe; }
+  .str { color: #ce9178; }
+  .num { color: #b5cea8; }
+  .cmt { color: #6a9955; }
+  .dim { color: #888; }
+
+  /* Architecture diagram */
+  .arch {
+    border: 2px solid var(--purple);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.5rem 0;
+    background: #fdfbff;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+  }
+
+  .arch-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: bold;
+    color: var(--purple);
+    margin-bottom: 1rem;
+  }
+
+  .az-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .az-col {
+    border: 1px dashed #aaa;
+    border-radius: 5px;
+    padding: 0.7rem;
+  }
+
+  .az-label {
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .db-box {
+    border-radius: 4px;
+    padding: 0.45rem 0.65rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.75rem;
+  }
+
+  .db-primary  { background: #fdf5e6; border: 1px solid #e59800; }
+  .db-standby  { background: #f0f0f0; border: 1px solid #aaa; }
+  .db-subnet   { background: #eaf0fb; border: 1px solid #a9c0eb; }
+  .db-proxy    { background: #eaf4ea; border: 1px solid #a9d5a9; }
+
+  .db-name  { font-weight: bold; color: var(--ink); }
+  .db-sub   { color: var(--muted); font-size: 0.68rem; }
+
+  .sync-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0.3rem 0;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .sync-line {
+    flex: 1;
+    border-top: 1px dashed #aaa;
+  }
+
+  .bottom-row {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 0.4rem;
+  }
+
+  .bottom-box {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.4rem 0.7rem;
+    background: white;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+
+  .bottom-box .bname { font-weight: bold; color: var(--ink); }
+  .bottom-box .bsub  { color: var(--muted); font-size: 0.65rem; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  /* Flow */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+
+  .flow .ftitle {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .arrow { color: var(--aws-orange); }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  thead tr { background: var(--ink); color: white; }
+  th {
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+  .good  { color: var(--green); font-weight: bold; }
+  .bad   { color: var(--accent); font-weight: bold; }
+
+  /* Checklist */
+  .checklist {
+    list-style: none;
+    margin: 0.5rem 0 1.2rem;
+  }
+  .checklist li {
+    padding: 0.3rem 0 0.3rem 1.6rem;
+    position: relative;
+    font-size: 0.93rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before {
+    content: "☐";
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+
+  /* Quiz */
+  .quiz {
+    background: var(--light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 2.5rem 0;
+  }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    margin: 0.25rem 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    transition: background 0.15s;
+  }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn {
+    margin-top: 0.5rem; padding: 0.4rem 1rem;
+    background: var(--ink); color: white; border: none;
+    border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif;
+  }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav {
+    margin-top: 3rem; padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-family: sans-serif; font-size: 0.85rem; color: var(--muted);
+  }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 2.5rem; padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted); font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 05 · Database</div>
+  <h1>RDS: Managed PostgreSQL for a Financial App</h1>
+  <div class="subtitle">Multi-AZ, encryption, backups, and connecting from ECS Fargate</div>
+</header>
+
+<p>Your ECS containers are running in private subnets. Now they need a database. For a financial web application, the choice is <strong>Amazon RDS for PostgreSQL</strong> — a fully managed relational database with automated backups, Multi-AZ high availability, and encryption built in.</p>
+
+<p>RDS handles the tasks that would otherwise consume engineering time: OS patching, engine upgrades, backup scheduling, and failover. You focus on schema design and query performance.</p>
+
+<h2>RDS Architecture for a Financial App</h2>
+
+<div class="arch">
+  <div class="arch-title">RDS Multi-AZ in your VPC</div>
+
+  <div class="az-row">
+    <div class="az-col">
+      <div class="az-label">AZ: us-east-1a</div>
+      <div class="db-box db-subnet">
+        <div class="db-name">DB Subnet · 10.0.5.0/24</div>
+      </div>
+      <div class="db-box db-primary">
+        <div class="db-name">RDS Primary</div>
+        <div class="db-sub">PostgreSQL 16 · db.t3.medium</div>
+        <div class="db-sub">Reads + Writes · port 5432</div>
+        <div class="db-sub">Encrypted at rest (KMS)</div>
+      </div>
+    </div>
+    <div class="az-col">
+      <div class="az-label">AZ: us-east-1b</div>
+      <div class="db-box db-subnet">
+        <div class="db-name">DB Subnet · 10.0.6.0/24</div>
+      </div>
+      <div class="db-box db-standby">
+        <div class="db-name">RDS Standby (Multi-AZ)</div>
+        <div class="db-sub">Synchronous replica</div>
+        <div class="db-sub">No traffic — failover only</div>
+        <div class="db-sub">Promotes in ~60 seconds</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sync-row">
+    <div class="sync-line"></div>
+    <span>synchronous replication</span>
+    <div class="sync-line"></div>
+  </div>
+
+  <div class="bottom-row">
+    <div class="bottom-box">
+      <div class="bname">RDS Proxy</div>
+      <div class="bsub">Connection pooler. ECS tasks connect here, not directly to RDS.</div>
+    </div>
+    <div class="bottom-box">
+      <div class="bname">Automated Backups</div>
+      <div class="bsub">Daily snapshots + transaction logs. Point-in-time recovery up to 35 days.</div>
+    </div>
+    <div class="bottom-box">
+      <div class="bname">KMS Key</div>
+      <div class="bsub">Encrypts storage, backups, and snapshots at rest.</div>
+    </div>
+  </div>
+</div>
+
+<h2>Multi-AZ: The Most Important RDS Setting</h2>
+
+<p>Multi-AZ runs a <strong>synchronous standby replica</strong> in a second Availability Zone. Every write to the primary is confirmed on the standby before it is acknowledged to your application. If the primary fails — hardware failure, AZ outage, OS crash — RDS automatically promotes the standby in approximately 60 seconds. Your application reconnects using the same endpoint; nothing else changes.</p>
+
+<div class="callout finance">
+  <strong>Finance requirement: Multi-AZ is non-negotiable</strong>
+  A single-AZ RDS instance is a single point of failure. For a financial application handling trade orders or user balances, even a few minutes of downtime during a market event is unacceptable. Always enable Multi-AZ in production. The standby does not serve reads — it exists only for failover.
+</div>
+
+<div class="callout info">
+  <strong>Azure analogy: Zone-redundant HA on Azure Database for PostgreSQL Flexible Server</strong>
+  Identical concept — a synchronous standby in a second zone, automatic failover, same connection string. AWS calls it "Multi-AZ". Azure calls it "Zone-redundant high availability". The ~60 second failover time is also similar.
+</div>
+
+<h2>The DB Subnet Group</h2>
+
+<p>Before creating an RDS instance, you define a <strong>DB Subnet Group</strong> — a collection of subnets (in different AZs) where RDS is allowed to place instances. RDS picks which subnet to use; you just ensure the group spans at least two AZs.</p>
+
+<pre><span class="cmt">DB Subnet Group: finapp-db-subnets</span>
+  Subnet 1: subnet-aaa  <span class="dim">(10.0.5.0/24, us-east-1a)</span>
+  Subnet 2: subnet-bbb  <span class="dim">(10.0.6.0/24, us-east-1b)</span>
+
+These are the DB-tier private subnets from Lesson 2.
+No internet route. Reachable only from ECS security group.</pre>
+
+<h2>Encryption</h2>
+
+<p>RDS encryption covers two surfaces — and both are required for any financial application:</p>
+
+<table>
+  <thead><tr><th>Surface</th><th>Mechanism</th><th>Enabled how</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>At rest</strong></td>
+      <td>AES-256 via AWS KMS. Encrypts storage, automated backups, read replicas, and snapshots.</td>
+      <td>Enable at creation — cannot be added later. Use a customer-managed KMS key (not the default AWS key) for financial data.</td>
+    </tr>
+    <tr>
+      <td><strong>In transit</strong></td>
+      <td>TLS 1.2/1.3 between your application and RDS.</td>
+      <td>Set <code>rds.force_ssl=1</code> in the Parameter Group. Your app must connect with <code>sslmode=require</code> in the connection string.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>Encryption at rest must be enabled at creation</strong>
+  You cannot encrypt an existing unencrypted RDS instance in place. The only path is: take a snapshot → copy the snapshot with encryption enabled → restore a new instance from the encrypted snapshot. Do it right the first time.
+</div>
+
+<h2>Automated Backups and Point-in-Time Recovery</h2>
+
+<p>RDS automatically takes a daily snapshot of your database and continuously archives transaction logs to S3. Together, these enable <strong>Point-in-Time Recovery (PITR)</strong> — restoring your database to any second within the backup retention window.</p>
+
+<table>
+  <thead><tr><th>Setting</th><th>Recommended value</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Backup retention</td>
+      <td>14–35 days</td>
+      <td>Financial regulations often require 90-day audit trails — longer retention means less gap to fill from other sources</td>
+    </tr>
+    <tr>
+      <td>Backup window</td>
+      <td>Off-peak hours (e.g. 02:00–03:00 UTC)</td>
+      <td>Brief I/O increase during snapshot; avoid market hours</td>
+    </tr>
+    <tr>
+      <td>Maintenance window</td>
+      <td>Weekend off-peak</td>
+      <td>Minor version patches and parameter changes apply here — may cause a brief Multi-AZ failover</td>
+    </tr>
+    <tr>
+      <td>Delete protection</td>
+      <td>Enabled</td>
+      <td>Prevents accidental <code>terraform destroy</code> or console click from wiping your production database</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Connecting from ECS Fargate</h2>
+
+<p>Three things must align for your ECS container to reach RDS: the security group chain, the secret in Secrets Manager, and the connection string in your app.</p>
+
+<h3>1. Security group rule (from Lesson 2)</h3>
+<pre>RDS Security Group inbound rule:
+  Port:   <span class="num">5432</span>
+  Source: <span class="key">sg-ecs-tasks</span>  <span class="cmt">← the ECS task security group ID, not a CIDR</span></pre>
+
+<h3>2. Store the connection string in Secrets Manager</h3>
+<pre>Secret name: <span class="str">finapp/db-url</span>
+Secret value:
+  <span class="str">"postgresql://finapp_user:PASSWORD@finapp-db.cluster-xyz.us-east-1.rds.amazonaws.com:5432/finapp?sslmode=require"</span>
+
+<span class="cmt">Note: sslmode=require — enforce TLS in the connection string itself</span></pre>
+
+<h3>3. Reference in the Task Definition (from Lesson 4)</h3>
+<pre><span class="key">"secrets"</span>: [
+  <span class="dim">{</span>
+    <span class="key">"name"</span>:      <span class="str">"DATABASE_URL"</span>,
+    <span class="key">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:us-east-1:123456789012:secret:finapp/db-url"</span>
+  <span class="dim">}</span>
+]</pre>
+
+<p>Your Python or Node app reads <code>os.environ["DATABASE_URL"]</code> as usual. The entire credential chain — from ECS startup to RDS authentication — is handled by AWS with no plaintext values in config files or environment variable dumps.</p>
+
+<h2>RDS Proxy — Connection Pooling for ECS</h2>
+
+<p>PostgreSQL maintains one OS process per connection. An ECS Service with 10 tasks, each running an app with a 5-connection pool, opens 50 connections to RDS. As the Service auto-scales to 50 tasks, that becomes 250 connections — which strains RDS and consumes memory.</p>
+
+<p><strong>RDS Proxy</strong> sits between your ECS tasks and RDS, maintaining a warm pool of connections to the database and multiplexing your application connections across it. Your tasks connect to the Proxy endpoint instead of the RDS endpoint directly.</p>
+
+<div class="flow">
+  <div class="ftitle">With RDS Proxy</div>
+ECS Task 1  ─┐
+ECS Task 2  ─┤  <span class="arrow">→</span>  RDS Proxy  <span class="arrow">→</span>  RDS Primary
+ECS Task 3  ─┤       (10 connections        (keeps a fixed, small
+ECS Task 4  ─┘        from 50 tasks)         pool to the DB)
+
+Benefits for Fargate:
+  <span class="arrow">·</span> Scales to many tasks without exhausting DB connections
+  <span class="arrow">·</span> Faster failover during Multi-AZ promotion (Proxy retries, tasks don't see the blip)
+  <span class="arrow">·</span> Integrates with IAM authentication and Secrets Manager natively
+</div>
+
+<div class="callout warn">
+  <strong>RDS Proxy costs ~$0.015/vCPU-hour per RDS instance</strong>
+  For a <code>db.t3.medium</code> (2 vCPU) running 24/7, that is about $22/month extra. Worth it at scale; optional for small traffic. Enable it from the start — retrofitting is easy, but connection exhaustion in production is painful.
+</div>
+
+<h2>RDS Instance Sizing</h2>
+
+<p>RDS instance classes follow the same family naming as EC2. For a financial app starting out:</p>
+
+<table>
+  <thead><tr><th>Instance</th><th>vCPU</th><th>RAM</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>db.t3.micro</code></td>
+      <td>2</td>
+      <td>1 GB</td>
+      <td class="note">Dev / staging only — burstable CPU, too small for production</td>
+    </tr>
+    <tr>
+      <td><code>db.t3.medium</code></td>
+      <td>2</td>
+      <td>4 GB</td>
+      <td class="note">Production starting point for low-to-moderate traffic financial APIs</td>
+    </tr>
+    <tr>
+      <td><code>db.r6g.large</code></td>
+      <td>2</td>
+      <td>16 GB</td>
+      <td class="note">Memory-optimized — better for larger working sets (market data, time series)</td>
+    </tr>
+    <tr>
+      <td><code>db.r6g.xlarge</code></td>
+      <td>4</td>
+      <td>32 GB</td>
+      <td class="note">Higher-traffic financial apps; significant portion of DB fits in RAM</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Start with <code>db.t3.medium</code>. Monitor <strong>CPU utilization</strong>, <strong>FreeableMemory</strong>, and <strong>DatabaseConnections</strong> in CloudWatch. Upsize only when you see sustained pressure — RDS instance changes on Multi-AZ cause a brief failover, not downtime.</p>
+
+<h2>Azure → AWS Database Map</h2>
+
+<table>
+  <thead>
+    <tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Key difference</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Managed PostgreSQL</td>
+      <td class="azure">Azure Database for PostgreSQL Flexible Server</td>
+      <td class="aws">Amazon RDS for PostgreSQL</td>
+      <td class="note">Nearly identical feature set. RDS has slightly more instance options; Azure Flexible Server has built-in PgBouncer.</td>
+    </tr>
+    <tr>
+      <td>High availability</td>
+      <td class="azure">Zone-redundant HA</td>
+      <td class="aws">Multi-AZ deployment</td>
+      <td class="note">Same concept: synchronous standby in a second zone, automatic failover ~60s.</td>
+    </tr>
+    <tr>
+      <td>Read scaling</td>
+      <td class="azure">Read replicas</td>
+      <td class="aws">RDS Read Replicas</td>
+      <td class="note">AWS read replicas use async replication. Useful for reporting queries; don't use for reads that must reflect recent writes.</td>
+    </tr>
+    <tr>
+      <td>Connection pooling</td>
+      <td class="azure">Built-in PgBouncer (Flexible Server)</td>
+      <td class="aws">RDS Proxy</td>
+      <td class="note">Azure includes it free. AWS charges separately for RDS Proxy.</td>
+    </tr>
+    <tr>
+      <td>Network placement</td>
+      <td class="azure">VNet integration / Private Endpoint</td>
+      <td class="aws">DB Subnet Group in VPC</td>
+      <td class="note">AWS places RDS directly inside the VPC; Azure requires explicit VNet integration or Private Endpoint.</td>
+    </tr>
+    <tr>
+      <td>Encryption at rest</td>
+      <td class="azure">Azure-managed key or CMK in Key Vault</td>
+      <td class="aws">AWS KMS (default or CMK)</td>
+      <td class="note">Both support customer-managed keys. In AWS: use a CMK (Customer Managed Key) in KMS for financial data to retain key control.</td>
+    </tr>
+    <tr>
+      <td>Point-in-time recovery</td>
+      <td class="azure">Up to 35 days</td>
+      <td class="aws">Up to 35 days</td>
+      <td class="note">Identical retention limit. Both restore to a new instance — the original is not modified.</td>
+    </tr>
+    <tr>
+      <td>DB config</td>
+      <td class="azure">Server parameters</td>
+      <td class="aws">Parameter Group</td>
+      <td class="note">Same concept. Apply <code>rds.force_ssl=1</code> here to enforce TLS connections.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Production Checklist</h2>
+
+<ul class="checklist">
+  <li>Multi-AZ enabled (not single-AZ)</li>
+  <li>Encryption at rest enabled at creation, using a customer-managed KMS key</li>
+  <li><code>rds.force_ssl=1</code> in Parameter Group; <code>sslmode=require</code> in connection string</li>
+  <li>RDS in DB Subnet Group spanning 2+ AZs, no internet route</li>
+  <li>Security group allows port 5432 only from ECS security group (by SG ID)</li>
+  <li>Connection string stored in Secrets Manager, referenced in ECS Task Definition <code>"secrets"</code></li>
+  <li>Automated backups enabled, retention ≥ 14 days</li>
+  <li>Delete protection enabled</li>
+  <li>CloudWatch alarms on: CPU &gt; 80%, FreeableMemory &lt; 500 MB, DatabaseConnections &gt; 80% of max</li>
+  <li>RDS Proxy configured if ECS service scales beyond ~5 tasks</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on RDS.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. Your Multi-AZ RDS primary instance fails at 2 AM. What happens?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> RDS sends an alert and waits for a manual failover command</label>
+      <label><input type="radio" name="q1" value="b"> The standby in the second AZ is promoted automatically; your app reconnects to the same endpoint in ~60 seconds</label>
+      <label><input type="radio" name="q1" value="c"> RDS restores from the most recent automated backup, which may take 30–60 minutes</label>
+      <label><input type="radio" name="q1" value="d"> ECS tasks detect the failure and switch to a read replica</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Multi-AZ failover is automatic. The standby promotes, the RDS DNS endpoint updates, and your ECS tasks reconnect — typically within 60 seconds. No manual action needed, no backup restore required.','Not quite. Multi-AZ does not require manual intervention and does not restore from backup. The pre-warmed synchronous standby is promoted automatically, and the endpoint DNS is updated so your app reconnects without code changes.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. You enabled encryption on an RDS instance after it was created — but the console says encryption is still disabled. Why?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> You need to restart the RDS instance for the change to take effect</label>
+      <label><input type="radio" name="q2" value="b"> Encryption at rest cannot be enabled on an existing RDS instance — it must be set at creation</label>
+      <label><input type="radio" name="q2" value="c"> The KMS key was not approved for RDS use in this region</label>
+      <label><input type="radio" name="q2" value="d"> You need to upgrade the instance class before enabling encryption</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. RDS encryption at rest is set once at creation and cannot be toggled afterward. The only remediation path is: snapshot the instance → copy the snapshot with encryption enabled → restore a new encrypted instance from the copy.','Not quite. RDS encryption at rest is immutable — it cannot be added to an running instance. You must set it at creation time. This is why the production checklist has it as the first item to verify.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. Why should ECS tasks connect to the RDS Proxy endpoint rather than the RDS instance endpoint directly?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> The RDS Proxy endpoint is faster because it skips the VPC routing layer</label>
+      <label><input type="radio" name="q3" value="b"> RDS Proxy pools connections, preventing many ECS tasks from exhausting the database's connection limit</label>
+      <label><input type="radio" name="q3" value="c"> The RDS Proxy is required for Multi-AZ — without it, failover does not work</label>
+      <label><input type="radio" name="q3" value="d"> RDS Proxy encrypts the connection; direct RDS connections are unencrypted</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. PostgreSQL uses one process per connection. Many ECS tasks each opening a connection pool can exhaust RDS connections. RDS Proxy maintains a small, warm pool to the database and multiplexes many application connections across it.','Not quite. RDS Proxy\'s primary benefit is connection pooling — it prevents connection exhaustion as ECS tasks scale. Multi-AZ failover works without it, and encryption is controlled separately via the sslmode parameter.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. Your ECS container's DATABASE_URL must include <code>sslmode=require</code>. Where do you enforce this on the RDS side so that connections without TLS are rejected?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> In the RDS Security Group — add a rule blocking unencrypted port 5432 traffic</label>
+      <label><input type="radio" name="q4" value="b"> In the RDS Parameter Group — set <code>rds.force_ssl=1</code></label>
+      <label><input type="radio" name="q4" value="c"> In the VPC Route Table — route non-TLS traffic to a black hole</label>
+      <label><input type="radio" name="q4" value">In the IAM policy — add a Condition requiring SecureTransport on the RDS ARN</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. The RDS Parameter Group setting rds.force_ssl=1 instructs PostgreSQL to reject any connection that does not present a TLS handshake. The sslmode=require in the connection string is the client side; force_ssl is the server-side enforcement.','Not quite. TLS enforcement at the database engine level is controlled by the Parameter Group setting rds.force_ssl=1. Security groups operate at the network layer and cannot distinguish encrypted vs unencrypted TCP on the same port.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  RDS PostgreSQL with <strong>Multi-AZ</strong> (automatic ~60s failover), <strong>encryption at rest via KMS</strong> (set at creation), <strong>forced TLS</strong> (Parameter Group + connection string), and <strong>Secrets Manager</strong> for credentials is the complete data layer for a production financial app. Use <strong>RDS Proxy</strong> once your ECS service scales beyond a handful of tasks. The DB Subnet Group places RDS in private subnets with no internet route — the only inbound traffic allowed is from the ECS security group on port 5432.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">← L1: Architecture</a> ·
+  <a href="0002-vpc-networking.html">← L2: VPC</a> ·
+  <a href="0003-iam.html">← L3: IAM</a> ·
+  <a href="0004-ecs-fargate.html">← L4: ECS</a><br><br>
+  <strong>Next:</strong> <em>Lesson 6 — Frontend on AWS: S3 + CloudFront + ACM (hosting your React/Vue SPA with TLS and a custom domain)</em><br><br>
+  <strong>Ask your teacher anything:</strong> Read replicas for reporting, RDS Performance Insights, how to run database migrations safely from ECS, or Aurora Serverless vs RDS — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Welcome.html" target="_blank">Amazon RDS User Guide</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank">Multi-AZ Deployments</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html" target="_blank">RDS Proxy</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html" target="_blank">RDS Encryption</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

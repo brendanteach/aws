@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 9 — Terraform: Infrastructure as Code for AWS</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --tf-purple: #7b42bc;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+    position: relative;
+  }
+  .file-label {
+    display: block;
+    font-family: sans-serif;
+    font-size: 0.68rem;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tf-purple);
+    background: #2a2a2a;
+    padding: 0.3rem 1.3rem;
+    margin: 1.2rem -1.3rem -0.8rem;
+    border-bottom: 1px solid #333;
+    border-radius: 5px 5px 0 0;
+  }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; }
+  .cmt { color: #6a9955; } .dim { color: #888; } .kw { color: #569cd6; }
+  .tf-res  { color: #4ec9b0; }
+  .tf-attr { color: #9cdcfe; }
+  .tf-val  { color: #ce9178; }
+  .tf-ref  { color: #dcdcaa; }
+  .tf-var  { color: #c586c0; }
+
+  /* Five concept cards */
+  .concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 1.2rem 0 1.8rem; }
+  .concept-card { border: 1px solid var(--border); border-radius: 5px; padding: 0.85rem 1rem; background: white; }
+  .cc-kw   { font-family: monospace; font-size: 0.82rem; color: var(--tf-purple); font-weight: bold; margin-bottom: 0.2rem; }
+  .cc-name { font-weight: bold; font-size: 0.92rem; color: var(--ink); margin-bottom: 0.25rem; }
+  .cc-desc { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+
+  /* Workflow */
+  .workflow { display: flex; gap: 0; margin: 1.2rem 0 1.8rem; font-family: sans-serif; font-size: 0.82rem; }
+  .wf-step { flex: 1; border: 1px solid var(--border); padding: 0.7rem 0.8rem; background: white; position: relative; }
+  .wf-step:not(:first-child) { border-left: none; }
+  .wf-step:first-child { border-radius: 4px 0 0 4px; }
+  .wf-step:last-child  { border-radius: 0 4px 4px 0; }
+  .wf-cmd  { font-family: monospace; font-weight: bold; color: var(--tf-purple); margin-bottom: 0.2rem; }
+  .wf-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+
+  /* Module tree */
+  .module-tree {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--tf-purple);
+    border-radius: 4px;
+    padding: 1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+  }
+
+  /* Callouts */
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.tf      { background: #f5f0ff; border: 1px solid #c9a9f5; border-left: 4px solid var(--tf-purple); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.92rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+  .tf    { color: var(--tf-purple); font-weight: bold; }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 09 · Infrastructure as Code</div>
+  <h1>Terraform: Infrastructure as Code for AWS</h1>
+  <div class="subtitle">Declaring your entire architecture in code — VPC to CloudFront, reproducible and reviewable</div>
+</header>
+
+<p>Every service in Lessons 1–8 was described in words and diagrams. Terraform lets you describe it in code — files that you run to create, update, or destroy AWS infrastructure. The same code creates your staging environment and your production environment. Changes go through pull request review. Infrastructure is never a mystery again.</p>
+
+<h2>The Five Core Concepts</h2>
+
+<div class="concept-grid">
+  <div class="concept-card">
+    <div class="cc-kw">provider</div>
+    <div class="cc-name">Provider</div>
+    <div class="cc-desc">The plugin that knows how to talk to AWS. You declare which provider to use and which region. Terraform downloads it on <code>init</code>.</div>
+  </div>
+  <div class="concept-card">
+    <div class="cc-kw">resource</div>
+    <div class="cc-name">Resource</div>
+    <div class="cc-desc">A single AWS object — one S3 bucket, one RDS instance, one security group. The main unit of Terraform.</div>
+  </div>
+  <div class="concept-card">
+    <div class="cc-kw">variable</div>
+    <div class="cc-name">Variable</div>
+    <div class="cc-desc">An input parameter. Different values for prod vs staging (db instance size, replica count). Never hardcode environment-specific values.</div>
+  </div>
+  <div class="concept-card">
+    <div class="cc-kw">output</div>
+    <div class="cc-name">Output</div>
+    <div class="cc-desc">A value Terraform exposes after apply — e.g. the RDS endpoint, the ALB DNS name. Used by other modules or CI/CD pipelines.</div>
+  </div>
+  <div class="concept-card" style="grid-column: 1 / -1;">
+    <div class="cc-kw">state</div>
+    <div class="cc-name">State — the most important concept</div>
+    <div class="cc-desc">Terraform tracks what it has created in a state file (<code>terraform.tfstate</code>). This is the source of truth for what exists. It must live in a shared, remote location (S3) — never on a developer's laptop. Protect it like a secret: it contains resource IDs and may contain sensitive values.</div>
+  </div>
+</div>
+
+<h2>The Workflow</h2>
+
+<div class="workflow">
+  <div class="wf-step">
+    <div class="wf-cmd">init</div>
+    <div class="wf-desc">Download providers, configure S3 backend for remote state</div>
+  </div>
+  <div class="wf-step">
+    <div class="wf-cmd">plan</div>
+    <div class="wf-desc">Show what will be created, changed, or destroyed — without doing it</div>
+  </div>
+  <div class="wf-step">
+    <div class="wf-cmd">apply</div>
+    <div class="wf-desc">Execute the plan — creates or updates real AWS resources</div>
+  </div>
+  <div class="wf-step">
+    <div class="wf-cmd">destroy</div>
+    <div class="wf-desc">Tear down everything Terraform created (use carefully)</div>
+  </div>
+</div>
+
+<p>The golden rule: <strong>always run <code>plan</code> before <code>apply</code></strong>. Read the plan output carefully — a <code>-/+</code> next to a resource means it will be destroyed and recreated (destructive). A <code>~</code> means in-place update (safe). Never <code>apply</code> without reviewing the plan.</p>
+
+<h2>Remote State — Non-Negotiable for Teams</h2>
+
+<p>If state lives on your laptop, nobody else can run Terraform safely. Configure an S3 backend with a DynamoDB lock table — this is the AWS standard.</p>
+
+<pre><span class="file-label">backend.tf</span>
+<span class="tf-res">terraform</span> {
+  <span class="tf-res">backend</span> <span class="str">"s3"</span> {
+    bucket         = <span class="str">"finapp-terraform-state"</span>   <span class="cmt"># versioning enabled</span>
+    key            = <span class="str">"prod/terraform.tfstate"</span>
+    region         = <span class="str">"us-east-1"</span>
+    encrypt        = <span class="kw">true</span>                       <span class="cmt"># state encrypted at rest</span>
+    dynamodb_table = <span class="str">"finapp-terraform-locks"</span>   <span class="cmt"># prevents concurrent runs</span>
+  }
+
+  required_providers {
+    aws = {
+      source  = <span class="str">"hashicorp/aws"</span>
+      version = <span class="str">"~> 5.0"</span>
+    }
+  }
+}</pre>
+
+<div class="callout warn">
+  <strong>Create the S3 bucket and DynamoDB table manually once</strong>
+  Terraform cannot create its own backend with Terraform (chicken-and-egg). Create the state bucket and lock table once via the AWS console or AWS CLI, then configure the backend block above. Enable S3 versioning on the state bucket — it lets you recover from accidental state corruption.
+</div>
+
+<h2>Module Structure for the Financial App</h2>
+
+<p>Organize Terraform into modules — one per architectural layer. Each module can be applied independently and reused across environments.</p>
+
+<div class="module-tree">
+infrastructure/
+├── <span class="dim">backend.tf</span>           <span class="cmt"># S3 remote state config</span>
+├── <span class="dim">providers.tf</span>         <span class="cmt"># AWS provider + region</span>
+├── <span class="dim">variables.tf</span>         <span class="cmt"># top-level inputs (env, region, app_name)</span>
+├── <span class="dim">outputs.tf</span>           <span class="cmt"># top-level outputs</span>
+│
+├── modules/
+│   ├── vpc/              <span class="cmt"># VPC, subnets, IGW, NAT, route tables, SGs, VPC endpoints</span>
+│   ├── iam/              <span class="cmt"># ECS task role, execution role, policies</span>
+│   ├── ecr/              <span class="cmt"># container registry</span>
+│   ├── rds/              <span class="cmt"># RDS PostgreSQL, subnet group, parameter group, proxy</span>
+│   ├── elasticache/      <span class="cmt"># Redis cluster</span>
+│   ├── ecs/              <span class="cmt"># cluster, task definition, service, ALB, target group</span>
+│   ├── cognito/          <span class="cmt"># user pool, app client, hosted UI domain</span>
+│   ├── frontend/         <span class="cmt"># S3 bucket, CloudFront, OAC, ACM cert, Route 53</span>
+│   └── secrets/          <span class="cmt"># Secrets Manager secrets (values set separately)</span>
+│
+└── envs/
+    ├── prod/             <span class="cmt"># prod variable values</span>
+    └── staging/          <span class="cmt"># staging variable values (smaller instances)</span>
+</div>
+
+<h2>Real Terraform — Key Resources</h2>
+
+<h3>Provider and variables</h3>
+
+<pre><span class="file-label">providers.tf</span>
+<span class="tf-res">provider</span> <span class="str">"aws"</span> {
+  region = <span class="tf-var">var.aws_region</span>
+  default_tags {
+    tags = {
+      <span class="tf-attr">Project</span>     = <span class="str">"finapp"</span>
+      <span class="tf-attr">Environment</span> = <span class="tf-var">var.environment</span>
+      <span class="tf-attr">ManagedBy</span>   = <span class="str">"terraform"</span>
+    }
+  }
+}
+
+<span class="cmt"># Second provider — us-east-1 for ACM cert (CloudFront requirement)</span>
+<span class="tf-res">provider</span> <span class="str">"aws"</span> {
+  alias  = <span class="str">"us_east_1"</span>
+  region = <span class="str">"us-east-1"</span>
+}</pre>
+
+<pre><span class="file-label">variables.tf</span>
+<span class="tf-res">variable</span> <span class="str">"environment"</span>  { <span class="tf-attr">type</span> = string }   <span class="cmt"># "prod" or "staging"</span>
+<span class="tf-res">variable</span> <span class="str">"aws_region"</span>   { <span class="tf-attr">type</span> = string; <span class="tf-attr">default</span> = <span class="str">"us-east-1"</span> }
+<span class="tf-res">variable</span> <span class="str">"db_instance"</span>  { <span class="tf-attr">type</span> = string }   <span class="cmt"># "db.t3.medium" (prod) / "db.t3.micro" (staging)</span>
+<span class="tf-res">variable</span> <span class="str">"ecs_cpu"</span>      { <span class="tf-attr">type</span> = number }   <span class="cmt"># 512 (prod) / 256 (staging)</span>
+<span class="tf-res">variable</span> <span class="str">"ecs_memory"</span>   { <span class="tf-attr">type</span> = number }   <span class="cmt"># 1024 (prod) / 512 (staging)</span>
+<span class="tf-res">variable</span> <span class="str">"domain_name"</span>  { <span class="tf-attr">type</span> = string }   <span class="cmt"># "finapp.com"</span></pre>
+
+<h3>VPC module</h3>
+
+<pre><span class="file-label">modules/vpc/main.tf  (excerpt)</span>
+<span class="tf-res">resource</span> <span class="str">"aws_vpc"</span> <span class="str">"main"</span> {
+  cidr_block           = <span class="str">"10.0.0.0/16"</span>
+  enable_dns_hostnames = <span class="kw">true</span>
+  enable_dns_support   = <span class="kw">true</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_subnet"</span> <span class="str">"public"</span> {
+  <span class="kw">for_each</span>          = { <span class="str">"1a"</span> = <span class="str">"10.0.1.0/24"</span>, <span class="str">"1b"</span> = <span class="str">"10.0.2.0/24"</span> }
+  vpc_id            = <span class="tf-ref">aws_vpc.main.id</span>
+  cidr_block        = <span class="tf-ref">each.value</span>
+  availability_zone = <span class="str">"us-east-1${each.key}"</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_internet_gateway"</span> <span class="str">"main"</span> {
+  vpc_id = <span class="tf-ref">aws_vpc.main.id</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_security_group"</span> <span class="str">"ecs"</span> {
+  name   = <span class="str">"finapp-ecs-${var.environment}"</span>
+  vpc_id = <span class="tf-ref">aws_vpc.main.id</span>
+
+  ingress {
+    from_port       = <span class="num">8080</span>
+    to_port         = <span class="num">8080</span>
+    protocol        = <span class="str">"tcp"</span>
+    security_groups = [<span class="tf-ref">aws_security_group.alb.id</span>]  <span class="cmt"># SG ID, not CIDR</span>
+  }
+
+  egress {
+    from_port   = <span class="num">0</span>; to_port = <span class="num">0</span>; protocol = <span class="str">"-1"</span>
+    cidr_blocks = [<span class="str">"0.0.0.0/0"</span>]
+  }
+}</pre>
+
+<h3>RDS module</h3>
+
+<pre><span class="file-label">modules/rds/main.tf  (excerpt)</span>
+<span class="tf-res">resource</span> <span class="str">"aws_db_subnet_group"</span> <span class="str">"main"</span> {
+  name       = <span class="str">"finapp-db-${var.environment}"</span>
+  subnet_ids = <span class="tf-var">var.db_subnet_ids</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_db_instance"</span> <span class="str">"postgres"</span> {
+  identifier          = <span class="str">"finapp-${var.environment}"</span>
+  engine              = <span class="str">"postgres"</span>
+  engine_version      = <span class="str">"16"</span>
+  instance_class      = <span class="tf-var">var.db_instance</span>
+
+  db_name  = <span class="str">"finapp"</span>
+  username = <span class="str">"finapp_admin"</span>
+  password = <span class="tf-var">var.db_password</span>    <span class="cmt"># sensitive — passed from Secrets Manager</span>
+
+  multi_az               = <span class="kw">true</span>    <span class="cmt"># always</span>
+  storage_encrypted      = <span class="kw">true</span>    <span class="cmt"># always</span>
+  kms_key_id             = <span class="tf-ref">aws_kms_key.rds.arn</span>
+  deletion_protection    = <span class="kw">true</span>    <span class="cmt"># cannot be destroyed without disabling first</span>
+  backup_retention_period = <span class="num">14</span>
+  skip_final_snapshot    = <span class="kw">false</span>   <span class="cmt"># take a snapshot on destroy</span>
+
+  db_subnet_group_name   = <span class="tf-ref">aws_db_subnet_group.main.name</span>
+  vpc_security_group_ids = [<span class="tf-ref">aws_security_group.rds.id</span>]
+
+  parameter_group_name = <span class="tf-ref">aws_db_parameter_group.postgres.name</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_db_parameter_group"</span> <span class="str">"postgres"</span> {
+  family = <span class="str">"postgres16"</span>
+  parameter {
+    name  = <span class="str">"rds.force_ssl"</span>
+    value = <span class="str">"1"</span>           <span class="cmt"># enforce TLS — Lesson 5</span>
+  }
+}</pre>
+
+<h3>ECS module</h3>
+
+<pre><span class="file-label">modules/ecs/main.tf  (excerpt)</span>
+<span class="tf-res">resource</span> <span class="str">"aws_ecs_cluster"</span> <span class="str">"main"</span> {
+  name = <span class="str">"finapp-${var.environment}"</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_ecs_task_definition"</span> <span class="str">"api"</span> {
+  family                   = <span class="str">"finapp-api"</span>
+  network_mode             = <span class="str">"awsvpc"</span>
+  requires_compatibilities = [<span class="str">"FARGATE"</span>]
+  cpu                      = <span class="tf-var">var.ecs_cpu</span>
+  memory                   = <span class="tf-var">var.ecs_memory</span>
+  execution_role_arn       = <span class="tf-ref">aws_iam_role.execution.arn</span>
+  task_role_arn            = <span class="tf-ref">aws_iam_role.task.arn</span>
+
+  container_definitions = jsonencode([{
+    name      = <span class="str">"api"</span>
+    image     = <span class="str">"${var.ecr_repo_url}:${var.image_tag}"</span>
+    portMappings = [{ containerPort = <span class="num">8080</span> }]
+
+    secrets = [
+      { name = <span class="str">"DATABASE_URL"</span>,   valueFrom = <span class="tf-var">var.db_secret_arn</span> },
+      { name = <span class="str">"ALPACA_API_KEY"</span>, valueFrom = <span class="tf-var">var.alpaca_secret_arn</span> }
+    ]
+
+    logConfiguration = {
+      logDriver = <span class="str">"awslogs"</span>
+      options = {
+        <span class="str">"awslogs-group"</span>         = <span class="str">"/ecs/finapp-api"</span>
+        <span class="str">"awslogs-region"</span>        = <span class="tf-var">var.aws_region</span>
+        <span class="str">"awslogs-stream-prefix"</span> = <span class="str">"api"</span>
+      }
+    }
+
+    healthCheck = {
+      command     = [<span class="str">"CMD-SHELL"</span>, <span class="str">"curl -f http://localhost:8080/health"</span>]
+      interval    = <span class="num">30</span>; timeout = <span class="num">5</span>; retries = <span class="num">3</span>; startPeriod = <span class="num">60</span>
+    }
+  }])
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_ecs_service"</span> <span class="str">"api"</span> {
+  name            = <span class="str">"finapp-api"</span>
+  cluster         = <span class="tf-ref">aws_ecs_cluster.main.id</span>
+  task_definition = <span class="tf-ref">aws_ecs_task_definition.api.arn</span>
+  desired_count   = <span class="num">2</span>
+  launch_type     = <span class="str">"FARGATE"</span>
+
+  network_configuration {
+    subnets          = <span class="tf-var">var.private_subnet_ids</span>
+    security_groups  = [<span class="tf-ref">aws_security_group.ecs.id</span>]
+    assign_public_ip = <span class="kw">false</span>
+  }
+
+  load_balancer {
+    target_group_arn = <span class="tf-ref">aws_lb_target_group.api.arn</span>
+    container_name   = <span class="str">"api"</span>
+    container_port   = <span class="num">8080</span>
+  }
+}</pre>
+
+<h3>Frontend module — ACM in us-east-1</h3>
+
+<pre><span class="file-label">modules/frontend/main.tf  (excerpt)</span>
+<span class="cmt"># ACM cert MUST use the us_east_1 provider alias</span>
+<span class="tf-res">resource</span> <span class="str">"aws_acm_certificate"</span> <span class="str">"main"</span> {
+  provider          = <span class="tf-ref">aws.us_east_1</span>    <span class="cmt"># the alias from providers.tf</span>
+  domain_name       = <span class="str">"*.${var.domain_name}"</span>
+  validation_method = <span class="str">"DNS"</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_s3_bucket"</span> <span class="str">"frontend"</span> {
+  bucket = <span class="str">"finapp-frontend-${var.environment}"</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_s3_bucket_public_access_block"</span> <span class="str">"frontend"</span> {
+  bucket                  = <span class="tf-ref">aws_s3_bucket.frontend.id</span>
+  block_public_acls       = <span class="kw">true</span>
+  block_public_policy     = <span class="kw">true</span>
+  ignore_public_acls      = <span class="kw">true</span>
+  restrict_public_buckets = <span class="kw">true</span>
+}
+
+<span class="tf-res">resource</span> <span class="str">"aws_cloudfront_distribution"</span> <span class="str">"main"</span> {
+  enabled             = <span class="kw">true</span>
+  default_root_object = <span class="str">"index.html"</span>
+  aliases             = [<span class="str">"app.${var.domain_name}"</span>]
+
+  <span class="cmt"># Origin 1: S3 for frontend</span>
+  origin {
+    domain_name              = <span class="tf-ref">aws_s3_bucket.frontend.bucket_regional_domain_name</span>
+    origin_id                = <span class="str">"s3-frontend"</span>
+    origin_access_control_id = <span class="tf-ref">aws_cloudfront_origin_access_control.main.id</span>
+  }
+
+  <span class="cmt"># Origin 2: ALB for API</span>
+  origin {
+    domain_name = <span class="tf-ref">aws_lb.main.dns_name</span>
+    origin_id   = <span class="str">"alb-api"</span>
+    custom_origin_config {
+      http_port              = <span class="num">80</span>
+      https_port             = <span class="num">443</span>
+      origin_protocol_policy = <span class="str">"https-only"</span>
+      origin_ssl_protocols   = [<span class="str">"TLSv1.2"</span>]
+    }
+  }
+
+  <span class="cmt"># Route /api/* to ALB</span>
+  ordered_cache_behavior {
+    path_pattern     = <span class="str">"/api/*"</span>
+    target_origin_id = <span class="str">"alb-api"</span>
+    allowed_methods  = [<span class="str">"DELETE"</span>, <span class="str">"GET"</span>, <span class="str">"HEAD"</span>, <span class="str">"OPTIONS"</span>, <span class="str">"PATCH"</span>, <span class="str">"POST"</span>, <span class="str">"PUT"</span>]
+    forwarded_values { query_string = <span class="kw">true</span>; headers = [<span class="str">"Authorization"</span>]
+      cookies { forward = <span class="str">"none"</span> } }
+    viewer_protocol_policy = <span class="str">"redirect-to-https"</span>
+  }
+
+  <span class="cmt"># SPA 404 fix</span>
+  custom_error_response {
+    error_code         = <span class="num">403</span>
+    response_code      = <span class="num">200</span>
+    response_page_path = <span class="str">"/index.html"</span>
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = <span class="tf-ref">aws_acm_certificate.main.arn</span>
+    ssl_support_method       = <span class="str">"sni-only"</span>
+    minimum_protocol_version = <span class="str">"TLSv1.2_2021"</span>
+  }
+}</pre>
+
+<h2>Plan Output — Reading It</h2>
+
+<pre><span class="cmt"># terraform plan output — learn to read this before every apply</span>
+
+  <span class="dim"># aws_db_instance.postgres will be created</span>
+  + <span class="tf-res">resource</span> <span class="str">"aws_db_instance"</span> <span class="str">"postgres"</span> {
+      + identifier        = <span class="str">"finapp-prod"</span>
+      + multi_az          = <span class="kw">true</span>
+      + storage_encrypted = <span class="kw">true</span>
+      ...
+    }
+
+  <span class="dim"># aws_ecs_service.api will be updated in-place</span>
+  ~ <span class="tf-res">resource</span> <span class="str">"aws_ecs_service"</span> <span class="str">"api"</span> {
+      ~ task_definition = <span class="str">"finapp-api:11"</span> -> <span class="str">"finapp-api:12"</span>
+    }
+
+  <span class="dim"># aws_db_parameter_group.postgres must be replaced</span>
+  -/+ <span class="tf-res">resource</span> <span class="str">"aws_db_parameter_group"</span> <span class="str">"postgres"</span> {  <span class="dim"># forces replacement!</span>
+      ...
+    }
+
+<span class="cmt">+  = create    ~  = update in-place    -/+  = destroy + recreate (CAUTION)</span></pre>
+
+<div class="callout finance">
+  <strong>-/+ means destruction — pause and think</strong>
+  Some AWS resources cannot be updated in-place. Changing a DB parameter group family, for example, forces RDS to destroy and recreate the parameter group (though not the database itself). Always read <code>-/+</code> lines carefully and understand what is being destroyed before running <code>apply</code>.
+</div>
+
+<h2>Azure → Terraform Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure IaC</th><th>Terraform</th><th>Difference</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>IaC language</td>
+      <td class="azure">Bicep / ARM JSON</td>
+      <td class="tf">HCL (HashiCorp Config Language)</td>
+      <td class="note">HCL is more readable than ARM JSON. Bicep is closer to HCL in ergonomics. Terraform works with 3000+ providers (AWS, Azure, GCP, GitHub, Datadog…).</td>
+    </tr>
+    <tr>
+      <td>State</td>
+      <td class="azure">Azure manages state (template deployments)</td>
+      <td class="tf">Explicit state file (S3 + DynamoDB)</td>
+      <td class="note">Azure ARM/Bicep is stateless — Azure itself tracks what was deployed. Terraform uses an explicit state file you manage. More control, more responsibility.</td>
+    </tr>
+    <tr>
+      <td>Modules</td>
+      <td class="azure">Bicep modules</td>
+      <td class="tf">Terraform modules</td>
+      <td class="note">Same concept — reusable, parameterized building blocks. Terraform Registry has thousands of community modules.</td>
+    </tr>
+    <tr>
+      <td>Preview changes</td>
+      <td class="azure">az deployment what-if</td>
+      <td class="tf">terraform plan</td>
+      <td class="note">Both show a diff of what will change. Terraform's output is generally more readable.</td>
+    </tr>
+    <tr>
+      <td>Apply changes</td>
+      <td class="azure">az deployment create</td>
+      <td class="tf">terraform apply</td>
+      <td class="note">Equivalent. Terraform requires explicit approval unless you pass <code>-auto-approve</code> (avoid in prod).</td>
+    </tr>
+    <tr>
+      <td>Drift detection</td>
+      <td class="azure">Limited (what-if shows some drift)</td>
+      <td class="tf">terraform plan always shows drift</td>
+      <td class="note">If someone manually changes a resource in the console, <code>terraform plan</code> shows it as a diff and <code>apply</code> reverts it — enforcing IaC as the single source of truth.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on Terraform.</p>
+
+  <div class="question" id="q1">
+    <p>1. A colleague manually changes the RDS instance class from <code>db.t3.medium</code> to <code>db.r6g.large</code> in the AWS console. What happens the next time someone runs <code>terraform plan</code>?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Terraform detects nothing — it only tracks changes made via Terraform</label>
+      <label><input type="radio" name="q1" value="b"> Terraform shows a diff: the console change will be reverted to <code>db.t3.medium</code> on the next apply</label>
+      <label><input type="radio" name="q1" value="c"> Terraform updates its state file to match the console change automatically</label>
+      <label><input type="radio" name="q1" value="d"> Terraform locks the resource so no further console changes are possible</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Terraform compares its state file (db.t3.medium) with the real AWS resource (db.r6g.large) and shows a plan to revert the drift. On apply, it changes the instance class back. This is why IaC enforces consistency — manual console changes are overwritten.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Why must the S3 remote state bucket be created manually before running <code>terraform init</code>?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> S3 buckets require manual approval from AWS before they can be created</label>
+      <label><input type="radio" name="q2" value="b"> Terraform cannot create its own state backend — it needs the backend to exist before it can store state anywhere</label>
+      <label><input type="radio" name="q2" value="c"> The backend bucket must be in us-east-1 specifically, which requires manual creation</label>
+      <label><input type="radio" name="q2" value="d"> Terraform init only downloads providers — it never creates AWS resources</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. This is the bootstrap problem. Terraform needs somewhere to store state before it can manage anything — but you cannot use Terraform to create that storage because there is no state yet. Create the S3 bucket and DynamoDB lock table once manually, then configure the backend block.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Your <code>terraform plan</code> shows <code>-/+</code> next to <code>aws_db_parameter_group.postgres</code>. What does this mean?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> The parameter group will be updated in-place with no downtime</label>
+      <label><input type="radio" name="q3" value="b"> The parameter group will be destroyed and recreated — check whether anything depending on it is also affected</label>
+      <label><input type="radio" name="q3" value="c"> The parameter group change is optional and can be skipped</label>
+      <label><input type="radio" name="q3" value="d"> Terraform found drift and will import the real resource into state</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. -/+ means destroy then recreate. For a parameter group alone, this is usually fine — it does not recreate the RDS instance. But if the RDS instance itself showed -/+, that would mean database destruction. Always trace what depends on the -/+ resource before applying.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. You need to provision the ACM TLS certificate for CloudFront, but your app region is <code>us-west-2</code>. How do you handle this in Terraform?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Set the provider region to us-east-1 globally — CloudFront will find the cert automatically</label>
+      <label><input type="radio" name="q4" value="b"> Create a second AWS provider alias (<code>aws.us_east_1</code>) and use it specifically on the <code>aws_acm_certificate</code> resource</label>
+      <label><input type="radio" name="q4" value="c"> Deploy the entire stack to us-east-1 to avoid the region mismatch</label>
+      <label><input type="radio" name="q4" value="d"> ACM automatically replicates certificates across regions — no special config needed</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Terraform supports multiple provider instances with aliases. You declare a second AWS provider with alias = "us_east_1" and region = "us-east-1", then reference it on the ACM certificate resource with provider = aws.us_east_1. All other resources use the default provider (us-west-2).')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout tf">
+  <strong>Lesson takeaway</strong>
+  Terraform = declare resources in HCL → <code>plan</code> to see changes → <code>apply</code> to execute. Store state in S3 + DynamoDB (create these manually once). Organize into modules per layer (vpc, iam, rds, ecs, frontend). Use provider aliases for resources that must live in a specific region (ACM cert → us-east-1). The <code>-/+</code> symbol in plan output means destruction — read carefully before applying. Manual console changes are overwritten on next apply — treat IaC as the only source of truth.
+</div>
+
+<div class="lesson-nav">
+  <a href="0007-complete-architecture.html">← L7: Complete Architecture</a> ·
+  <a href="0008-cognito.html">← L8: Cognito</a><br><br>
+  <strong>Ask your teacher anything:</strong> Terraform workspaces vs separate state files, importing existing resources, CI/CD pipeline for Terraform (GitHub Actions + OIDC), or Terragrunt for DRY multi-environment config — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://developer.hashicorp.com/terraform/docs" target="_blank">Terraform Documentation</a> ·
+  <a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs" target="_blank">Terraform AWS Provider</a> ·
+  <a href="https://developer.hashicorp.com/terraform/language/state/remote" target="_blank">Remote State</a> ·
+  <a href="https://developer.hashicorp.com/terraform/language/modules" target="_blank">Terraform Modules</a>
+</footer>
+
+</article>
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg; feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg; feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

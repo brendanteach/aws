@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS Architecture — 12-Lesson Series</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --aws-orange: #FF9900; --green: #27ae60; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 680px; margin: 3rem auto 5rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .series-tag { font-family: monospace; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+  h1 { font-size: 2rem; font-weight: normal; line-height: 1.2; margin-bottom: 0.5rem; }
+  .intro { color: var(--muted); font-style: italic; margin-bottom: 0; }
+  h2 { font-size: 1rem; font-weight: bold; margin: 2.2rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); font-family: sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.78rem; color: var(--muted); }
+  .lesson-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+  .lesson-card { display: flex; align-items: baseline; gap: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 4px; background: white; text-decoration: none; color: var(--ink); transition: border-color 0.15s, box-shadow 0.15s; }
+  .lesson-card:hover { border-color: var(--aws-orange); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .lc-num  { font-family: monospace; font-size: 0.78rem; color: var(--muted); flex-shrink: 0; width: 2.2rem; }
+  .lc-body { flex: 1; }
+  .lc-title { font-weight: bold; font-size: 0.95rem; color: var(--ink); }
+  .lc-sub   { font-size: 0.8rem; color: var(--muted); font-family: sans-serif; margin-top: 0.1rem; line-height: 1.4; }
+  .lc-tag   { font-family: sans-serif; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; padding: 0.1rem 0.4rem; border-radius: 3px; flex-shrink: 0; }
+  .tag-foundation { background: #fde8d8; color: #c05a00; }
+  .tag-service    { background: #d8eaf5; color: #1a5276; }
+  .tag-auth       { background: #e8d8f5; color: #5b2c6f; }
+  .tag-iac        { background: #f5d8e8; color: #6d1a3a; }
+  .tag-async      { background: #d8f5e8; color: #1a6d3a; }
+  .tag-ops        { background: #f5f5d8; color: #4a4a00; }
+  .tag-cicd       { background: #d8f0f5; color: #004a5a; }
+
+  .prereq-box { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1rem 1.2rem; margin: 2rem 0; font-size: 0.88rem; font-family: sans-serif; }
+  .prereq-box strong { display: block; margin-bottom: 0.4rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.82rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+  <header>
+    <div class="series-tag">12 Lessons · Self-paced</div>
+    <h1>AWS Architecture for a Financial Web App</h1>
+    <p class="intro">Build a production-grade financial app on AWS — frontend, backend, database, auth, async jobs, monitoring, and deployment. Taught by analogy to Azure.</p>
+  </header>
+
+  <div class="prereq-box">
+    <strong>Prerequisites</strong>
+    Familiarity with web application concepts (frontend/backend/database). Azure cloud experience is useful — Azure analogies are used throughout. No prior AWS experience required.
+  </div>
+
+  <h2>Part 1 — Foundation</h2>
+  <div class="lesson-grid">
+    <a class="lesson-card" href="lessons/0001-aws-architecture-map.html">
+      <span class="lc-num">01</span>
+      <div class="lc-body">
+        <div class="lc-title">AWS Architecture Map</div>
+        <div class="lc-sub">Azure → AWS service translation, the full stack overview, and three key ways AWS differs from Azure</div>
+      </div>
+      <span class="lc-tag tag-foundation">Foundation</span>
+    </a>
+    <a class="lesson-card" href="lessons/0002-vpc-networking.html">
+      <span class="lc-num">02</span>
+      <div class="lc-body">
+        <div class="lc-title">VPC Networking</div>
+        <div class="lc-sub">Public/private/DB subnets, Security Groups, NAT Gateway, traffic flow from browser to API</div>
+      </div>
+      <span class="lc-tag tag-foundation">Foundation</span>
+    </a>
+    <a class="lesson-card" href="lessons/0003-iam.html">
+      <span class="lc-num">03</span>
+      <div class="lc-body">
+        <div class="lc-title">IAM — Identity and Access</div>
+        <div class="lc-sub">Roles, policies, ARNs, Task Role vs Execution Role, principle of least privilege</div>
+      </div>
+      <span class="lc-tag tag-foundation">Foundation</span>
+    </a>
+  </div>
+
+  <h2>Part 2 — Core Services</h2>
+  <div class="lesson-grid">
+    <a class="lesson-card" href="lessons/0004-ecs-fargate.html">
+      <span class="lc-num">04</span>
+      <div class="lc-body">
+        <div class="lc-title">ECS Fargate — Containerized Backend</div>
+        <div class="lc-sub">Cluster → Service → Task Definition → Task, rolling deployments, auto-scaling, secrets injection</div>
+      </div>
+      <span class="lc-tag tag-service">Service</span>
+    </a>
+    <a class="lesson-card" href="lessons/0005-rds.html">
+      <span class="lc-num">05</span>
+      <div class="lc-body">
+        <div class="lc-title">RDS PostgreSQL</div>
+        <div class="lc-sub">Multi-AZ failover, encryption at rest and in transit, RDS Proxy for connection pooling, backups</div>
+      </div>
+      <span class="lc-tag tag-service">Service</span>
+    </a>
+    <a class="lesson-card" href="lessons/0006-frontend-s3-cloudfront.html">
+      <span class="lc-num">06</span>
+      <div class="lc-body">
+        <div class="lc-title">Frontend — S3 + CloudFront</div>
+        <div class="lc-sub">OAC, ACM cert in us-east-1, SPA deep-link fix, content hashing, security headers</div>
+      </div>
+      <span class="lc-tag tag-service">Service</span>
+    </a>
+    <a class="lesson-card" href="lessons/0007-complete-architecture.html">
+      <span class="lc-num">07</span>
+      <div class="lc-body">
+        <div class="lc-title">Complete Architecture Capstone</div>
+        <div class="lc-sub">All services in one diagram, every connection labeled, 5-phase provisioning order, open decisions</div>
+      </div>
+      <span class="lc-tag tag-foundation">Capstone</span>
+    </a>
+  </div>
+
+  <h2>Part 3 — Auth, IaC &amp; Async</h2>
+  <div class="lesson-grid">
+    <a class="lesson-card" href="lessons/0008-cognito.html">
+      <span class="lc-num">08</span>
+      <div class="lc-body">
+        <div class="lc-title">Cognito — User Authentication</div>
+        <div class="lc-sub">User Pools, JWT flow, local token validation in ECS, TOTP MFA, Amplify JS integration</div>
+      </div>
+      <span class="lc-tag tag-auth">Auth</span>
+    </a>
+    <a class="lesson-card" href="lessons/0009-terraform.html">
+      <span class="lc-num">09</span>
+      <div class="lc-body">
+        <div class="lc-title">Terraform — Infrastructure as Code</div>
+        <div class="lc-sub">HCL, remote state on S3, module structure, real resource blocks for every layer, plan output</div>
+      </div>
+      <span class="lc-tag tag-iac">IaC</span>
+    </a>
+    <a class="lesson-card" href="lessons/0010-sqs-lambda.html">
+      <span class="lc-num">10</span>
+      <div class="lc-body">
+        <div class="lc-title">SQS + Lambda — Async Processing</div>
+        <div class="lc-sub">Message queues, DLQ, visibility timeout, batchItemFailures, trade confirmation emails</div>
+      </div>
+      <span class="lc-tag tag-async">Async</span>
+    </a>
+  </div>
+
+  <h2>Part 4 — Operations &amp; Delivery</h2>
+  <div class="lesson-grid">
+    <a class="lesson-card" href="lessons/0011-cloudwatch.html">
+      <span class="lc-num">11</span>
+      <div class="lc-body">
+        <div class="lc-title">CloudWatch — Monitoring &amp; Alarms</div>
+        <div class="lc-sub">Structured logging, 11-alarm checklist, custom business metrics, X-Ray distributed tracing</div>
+      </div>
+      <span class="lc-tag tag-ops">Ops</span>
+    </a>
+    <a class="lesson-card" href="lessons/0012-cicd.html">
+      <span class="lc-num">12</span>
+      <div class="lc-body">
+        <div class="lc-title">CI/CD with GitHub Actions</div>
+        <div class="lc-sub">OIDC auth (no stored keys), parallel deploy pipeline, ECS rolling deploy, CloudFront invalidation</div>
+      </div>
+      <span class="lc-tag tag-cicd">CI/CD</span>
+    </a>
+  </div>
+
+  <footer>
+    AWS Architecture · 12 lessons · Financial web app focus · Azure analogies throughout ·
+    <a href="https://github.com/liubrend/teach-aws">github.com/liubrend/teach-aws</a>
+  </footer>
+</article>
+</body>
+</html>

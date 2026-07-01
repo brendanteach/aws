@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 4 — ECS Fargate: Running Your Containerized Backend</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+
+  h2 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin: 2.5rem 0 0.8rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .kw  { color: #569cd6; }
+  .str { color: #ce9178; }
+  .key { color: #9cdcfe; }
+  .val { color: #4ec9b0; }
+  .num { color: #b5cea8; }
+  .cmt { color: #6a9955; }
+
+  /* Concept hierarchy */
+  .hierarchy {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 1.2rem 0 1.8rem;
+    font-family: sans-serif;
+    font-size: 0.88rem;
+  }
+
+  .h-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .h-row:last-child { border-bottom: none; }
+
+  .h-label {
+    padding: 0.65rem 0.9rem;
+    font-weight: bold;
+    background: var(--ink);
+    color: white;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .h-body {
+    padding: 0.65rem 0.9rem;
+    line-height: 1.5;
+    background: white;
+  }
+
+  .h-body .sub { color: var(--muted); font-size: 0.82rem; margin-top: 0.15rem; }
+  .h-body .azure { color: var(--azure-blue); font-size: 0.8rem; }
+
+  /* ECS architecture diagram */
+  .ecs-diagram {
+    border: 2px solid var(--aws-orange);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.5rem 0;
+    background: #fffdf8;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+  }
+
+  .ecs-diagram .title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: bold;
+    color: var(--aws-orange);
+    margin-bottom: 0.9rem;
+  }
+
+  .ecs-top { display: flex; justify-content: center; margin-bottom: 0.5rem; }
+  .ecs-mid { display: flex; justify-content: center; margin-bottom: 0.5rem; }
+
+  .ecs-box {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.45rem 0.9rem;
+    background: white;
+    text-align: center;
+  }
+
+  .ecs-box .name  { font-weight: bold; color: var(--ink); }
+  .ecs-box .sub   { color: var(--muted); font-size: 0.72rem; }
+  .ecs-box.orange { border-color: var(--aws-orange); }
+  .ecs-box.green  { border-color: var(--green); }
+  .ecs-box.blue   { border-color: var(--azure-blue); }
+
+  .connector {
+    text-align: center;
+    color: var(--aws-orange);
+    font-size: 1rem;
+    line-height: 1.4;
+    margin: 0.15rem 0;
+  }
+
+  .tasks-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem;
+    margin-top: 0.3rem;
+  }
+
+  .task-box {
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    padding: 0.5rem 0.7rem;
+    background: #f0faf0;
+  }
+
+  .task-box .t-name { font-weight: bold; color: var(--ink); font-size: 0.82rem; }
+  .task-box .t-az   { font-size: 0.7rem; color: var(--muted); }
+  .task-box .t-items{ margin-top: 0.3rem; }
+  .task-box .t-item { font-size: 0.72rem; color: #444; }
+
+  /* Flow boxes */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+
+  .flow .ftitle {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .arrow { color: var(--aws-orange); }
+  .dim   { color: #888; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  thead tr { background: var(--ink); color: white; }
+  th {
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Quiz */
+  .quiz {
+    background: var(--light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 2.5rem 0;
+  }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    margin: 0.25rem 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    transition: background 0.15s;
+  }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 3px;
+    font-size: 0.88rem;
+    display: none;
+  }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-family: sans-serif;
+  }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-family: sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 04 · Compute</div>
+  <h1>ECS Fargate: Running Your Containerized Backend</h1>
+  <div class="subtitle">Clusters, task definitions, services, and how everything wires together</div>
+</header>
+
+<p>You have a VPC with private subnets, an ALB in the public subnet, and IAM roles ready to attach. Now you need something to actually run your containerized FastAPI or Node backend. That is ECS Fargate.</p>
+
+<p><strong>ECS (Elastic Container Service)</strong> is AWS's container orchestrator. <strong>Fargate</strong> is the compute engine underneath it — serverless, meaning AWS manages the underlying servers and you only define what your container needs. You never SSH into a box or patch an OS.</p>
+
+<h2>The Four ECS Concepts</h2>
+
+<p>ECS has a strict four-level hierarchy. Understand this and the rest falls into place.</p>
+
+<div class="hierarchy">
+  <div class="h-row">
+    <div class="h-label">Cluster</div>
+    <div class="h-body">
+      A logical boundary grouping your services and tasks. One cluster per environment (e.g. <code>finapp-prod</code>, <code>finapp-staging</code>). Does not provision servers — with Fargate it is just a namespace.
+      <div class="azure">≈ Azure Container Apps Environment</div>
+    </div>
+  </div>
+  <div class="h-row">
+    <div class="h-label">Task Definition</div>
+    <div class="h-body">
+      The <em>blueprint</em> for your container: which Docker image, how much CPU and memory, which ports to expose, environment variables, secrets, IAM roles, and logging config. Versioned — each update creates a new revision.
+      <div class="azure">≈ Azure Container App configuration / ACI container group</div>
+    </div>
+  </div>
+  <div class="h-row">
+    <div class="h-label">Task</div>
+    <div class="h-body">
+      A running instance of a Task Definition. Like a single pod in Kubernetes. Fargate provisions compute for it, runs it, and cleans up when it stops. Tasks can run one-off (a migration, a batch job) or be kept running by a Service.
+      <div class="azure">≈ A single ACI container instance</div>
+    </div>
+  </div>
+  <div class="h-row">
+    <div class="h-label">Service</div>
+    <div class="h-body">
+      Keeps a desired number of Tasks running at all times. Replaces failed tasks, integrates with the ALB, handles rolling deployments, and drives auto-scaling. This is what you deploy your API as.
+      <div class="azure">≈ Azure Container App (with min/max replicas)</div>
+    </div>
+  </div>
+</div>
+
+<h2>How the Pieces Fit Together</h2>
+
+<div class="ecs-diagram">
+  <div class="title">ECS + ALB + VPC — Financial App Backend</div>
+
+  <div class="ecs-top">
+    <div class="ecs-box orange">
+      <div class="name">ALB — port 443</div>
+      <div class="sub">Public subnet · TLS terminated</div>
+    </div>
+  </div>
+  <div class="connector">↓ routes to Target Group</div>
+  <div class="ecs-mid">
+    <div class="ecs-box orange">
+      <div class="name">ECS Service · finapp-api</div>
+      <div class="sub">Cluster: finapp-prod · desired count: 2</div>
+    </div>
+  </div>
+  <div class="connector">↓ manages</div>
+  <div class="tasks-row">
+    <div class="task-box">
+      <div class="t-name">ECS Task (revision 12)</div>
+      <div class="t-az">AZ: us-east-1a · Private subnet</div>
+      <div class="t-items">
+        <div class="t-item">▸ Image: 123456.dkr.ecr…/finapp-api:v1.8</div>
+        <div class="t-item">▸ CPU: 512 (.5 vCPU) · Memory: 1024 MB</div>
+        <div class="t-item">▸ Port: 8080</div>
+        <div class="t-item">▸ Task Role: finapp-ecs-task-role</div>
+        <div class="t-item">▸ Own ENI · IP: 10.0.3.45</div>
+      </div>
+    </div>
+    <div class="task-box">
+      <div class="t-name">ECS Task (revision 12)</div>
+      <div class="t-az">AZ: us-east-1b · Private subnet</div>
+      <div class="t-items">
+        <div class="t-item">▸ Image: 123456.dkr.ecr…/finapp-api:v1.8</div>
+        <div class="t-item">▸ CPU: 512 (.5 vCPU) · Memory: 1024 MB</div>
+        <div class="t-item">▸ Port: 8080</div>
+        <div class="t-item">▸ Task Role: finapp-ecs-task-role</div>
+        <div class="t-item">▸ Own ENI · IP: 10.0.4.17</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>Each Task gets its own <strong>Elastic Network Interface (ENI)</strong> — its own IP address and security group in the private subnet. This is the <code>awsvpc</code> network mode, mandatory for Fargate. Traffic from the ALB hits the Task directly on its private IP — no port remapping, no shared host networking.</p>
+
+<h2>ECR — Where Your Docker Images Live</h2>
+
+<p>Before ECS can run your container, the image needs to live in a registry that ECS can pull from. <strong>ECR (Elastic Container Registry)</strong> is AWS's private Docker registry — the equivalent of Azure Container Registry.</p>
+
+<div class="flow">
+  <div class="ftitle">Deploy flow: code → ECR → ECS</div>
+docker build -t finapp-api:v1.8 .
+  <span class="arrow">→</span> docker tag finapp-api:v1.8 123456789012.dkr.ecr.us-east-1.amazonaws.com/finapp-api:v1.8
+  <span class="arrow">→</span> docker push 123456789012.dkr.ecr.us-east-1.amazonaws.com/finapp-api:v1.8
+  <span class="arrow">→</span> Update Task Definition to point to :v1.8
+  <span class="arrow">→</span> Update ECS Service → triggers rolling deployment
+  <span class="arrow">→</span> ECS starts new Tasks with new image, drains old Tasks from ALB
+</div>
+
+<p>ECR images live in the same AWS account and region as your ECS cluster. The Task Execution Role needs <code>ecr:GetDownloadUrlForLayer</code>, <code>ecr:BatchGetImage</code>, and <code>ecr:GetAuthorizationToken</code> — AWS provides a managed policy (<code>AmazonECSTaskExecutionRolePolicy</code>) that covers all of these.</p>
+
+<h2>The Task Definition — Annotated</h2>
+
+<p>The Task Definition is the most important configuration object in ECS. Here is a realistic one for the financial app backend, with the key fields explained:</p>
+
+<pre><span class="dim">{</span>
+  <span class="key">"family"</span>: <span class="str">"finapp-api"</span>,          <span class="cmt">// name; each update = new revision</span>
+  <span class="key">"networkMode"</span>: <span class="str">"awsvpc"</span>,       <span class="cmt">// mandatory for Fargate</span>
+  <span class="key">"requiresCompatibilities"</span>: [<span class="str">"FARGATE"</span>],
+  <span class="key">"cpu"</span>: <span class="str">"512"</span>,                   <span class="cmt">// 0.5 vCPU</span>
+  <span class="key">"memory"</span>: <span class="str">"1024"</span>,              <span class="cmt">// MB</span>
+
+  <span class="key">"executionRoleArn"</span>: <span class="str">"arn:aws:iam::…:role/finapp-execution-role"</span>,
+  <span class="key">"taskRoleArn"</span>:      <span class="str">"arn:aws:iam::…:role/finapp-task-role"</span>,
+
+  <span class="key">"containerDefinitions"</span>: [<span class="dim">{</span>
+    <span class="key">"name"</span>:  <span class="str">"api"</span>,
+    <span class="key">"image"</span>: <span class="str">"123456789012.dkr.ecr.us-east-1.amazonaws.com/finapp-api:v1.8"</span>,
+    <span class="key">"portMappings"</span>: [<span class="dim">{</span> <span class="key">"containerPort"</span>: <span class="num">8080</span> <span class="dim">}</span>],
+
+    <span class="cmt">// Plain env vars — non-sensitive config only</span>
+    <span class="key">"environment"</span>: [
+      <span class="dim">{</span> <span class="key">"name"</span>: <span class="str">"APP_ENV"</span>,    <span class="key">"value"</span>: <span class="str">"production"</span> <span class="dim">}</span>,
+      <span class="dim">{</span> <span class="key">"name"</span>: <span class="str">"LOG_LEVEL"</span>,  <span class="key">"value"</span>: <span class="str">"info"</span> <span class="dim">}</span>
+    ],
+
+    <span class="cmt">// Secrets — injected from Secrets Manager at task startup</span>
+    <span class="key">"secrets"</span>: [
+      <span class="dim">{</span>
+        <span class="key">"name"</span>:      <span class="str">"DATABASE_URL"</span>,
+        <span class="key">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:…:secret:finapp/db-url"</span>
+      <span class="dim">}</span>,
+      <span class="dim">{</span>
+        <span class="key">"name"</span>:      <span class="str">"ALPACA_API_KEY"</span>,
+        <span class="key">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:…:secret:finapp/alpaca-key"</span>
+      <span class="dim">}</span>
+    ],
+
+    <span class="cmt">// All logs go to CloudWatch automatically</span>
+    <span class="key">"logConfiguration"</span>: <span class="dim">{</span>
+      <span class="key">"logDriver"</span>: <span class="str">"awslogs"</span>,
+      <span class="key">"options"</span>: <span class="dim">{</span>
+        <span class="key">"awslogs-group"</span>:  <span class="str">"/ecs/finapp-api"</span>,
+        <span class="key">"awslogs-region"</span>: <span class="str">"us-east-1"</span>,
+        <span class="key">"awslogs-stream-prefix"</span>: <span class="str">"api"</span>
+      <span class="dim">}</span>
+    <span class="dim">}</span>,
+
+    <span class="cmt">// Health check — ECS restarts container if this fails 3x</span>
+    <span class="key">"healthCheck"</span>: <span class="dim">{</span>
+      <span class="key">"command"</span>:     [<span class="str">"CMD-SHELL"</span>, <span class="str">"curl -f http://localhost:8080/health"</span>],
+      <span class="key">"interval"</span>:    <span class="num">30</span>,
+      <span class="key">"timeout"</span>:     <span class="num">5</span>,
+      <span class="key">"retries"</span>:     <span class="num">3</span>,
+      <span class="key">"startPeriod"</span>: <span class="num">60</span>   <span class="cmt">// grace period on cold start</span>
+    <span class="dim">}</span>
+  <span class="dim">}</span>]
+<span class="dim">}</span></pre>
+
+<div class="callout finance">
+  <strong>Secrets injection — never put credentials in "environment"</strong>
+  The <code>"secrets"</code> field fetches values from Secrets Manager at task startup and injects them as environment variables inside the container. They never appear in the Task Definition JSON in plaintext, they are not visible in the AWS console, and they do not end up in CloudWatch logs. Always use <code>"secrets"</code> for DATABASE_URL, API keys, and any credential.
+</div>
+
+<h2>ECS Service — The Deployment Manager</h2>
+
+<p>The Service is the layer that makes ECS production-ready. It does three things:</p>
+
+<h3>1. Keeps desired count healthy</h3>
+<p>If a Task crashes, the Service starts a replacement. If an AZ goes down, it starts Tasks in the healthy AZ. You set <code>desiredCount: 2</code> (minimum for HA) and the Service enforces it.</p>
+
+<h3>2. Rolling deployments</h3>
+<p>When you update the Task Definition (new image, new env var), the Service replaces Tasks one at a time. The default rolling strategy keeps at least 100% of desired capacity running, adding new Tasks before draining old ones — so your API has zero downtime during deployment.</p>
+
+<div class="flow">
+  <div class="ftitle">Rolling deployment sequence</div>
+Service detects new Task Definition revision
+  <span class="arrow">→</span> Starts new Task (revision 13) in AZ-1a → registers with ALB Target Group
+  <span class="arrow">→</span> ALB health check passes → starts sending traffic to new Task
+  <span class="arrow">→</span> Deregisters old Task (revision 12) from ALB → connection draining (30s)
+  <span class="arrow">→</span> Stops old Task
+  <span class="arrow">→</span> Repeats for AZ-1b Task
+  <span class="arrow">→</span> Deployment complete — zero downtime
+</div>
+
+<h3>3. Auto-scaling</h3>
+<p>Attach an <strong>Application Auto Scaling</strong> policy to the Service. Common triggers:</p>
+
+<table>
+  <thead><tr><th>Metric</th><th>Scale out when</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td>ECS CPU utilization</td><td>&gt; 70% for 2 minutes</td><td>CPU-bound workloads (computation, heavy queries)</td></tr>
+    <tr><td>ECS Memory utilization</td><td>&gt; 80% for 2 minutes</td><td>Memory-heavy workloads (data processing)</td></tr>
+    <tr><td>ALB RequestCountPerTarget</td><td>&gt; 1000 req/min per task</td><td>I/O-bound APIs (most financial backends)</td></tr>
+  </tbody>
+</table>
+
+<p>Set a minimum of 2 Tasks (spans 2 AZs) and a maximum based on your expected peak load and budget.</p>
+
+<h2>Fargate CPU and Memory Sizing</h2>
+
+<p>Fargate uses fixed CPU/memory combinations — unlike EC2 where you pick any instance type. Valid combinations for a backend API:</p>
+
+<table>
+  <thead><tr><th>CPU</th><th>Memory options</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td>256 (0.25 vCPU)</td><td>512 MB – 2 GB</td><td>Low-traffic services, background workers</td></tr>
+    <tr><td>512 (0.5 vCPU)</td><td>1 GB – 4 GB</td><td>Typical REST API — start here</td></tr>
+    <tr><td>1024 (1 vCPU)</td><td>2 GB – 8 GB</td><td>Higher-traffic API, moderate data processing</td></tr>
+    <tr><td>2048 (2 vCPU)</td><td>4 GB – 16 GB</td><td>Heavy computation, ML inference, large market data processing</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Start small and measure</strong>
+  Start at 512 CPU / 1024 MB. Check CloudWatch metrics after a week of production traffic. Scale up only if CPU consistently exceeds 60% or memory exceeds 75%. Fargate costs per vCPU-hour and GB-hour — oversizing 4 Tasks wastes money fast.
+</div>
+
+<h2>Azure → AWS Container Map</h2>
+
+<table>
+  <thead>
+    <tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Key difference</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Container registry</td>
+      <td class="azure">ACR (Azure Container Registry)</td>
+      <td class="aws">ECR (Elastic Container Registry)</td>
+      <td class="note">ECR is per-region; ACR is global. ECR integrates natively with ECS via the Execution Role.</td>
+    </tr>
+    <tr>
+      <td>Serverless containers</td>
+      <td class="azure">Azure Container Apps</td>
+      <td class="aws">ECS Fargate</td>
+      <td class="note">Very similar model. ECS requires more explicit configuration (Task Definitions, Services). Container Apps is more opinionated/managed.</td>
+    </tr>
+    <tr>
+      <td>Container environment</td>
+      <td class="azure">Container Apps Environment</td>
+      <td class="aws">ECS Cluster</td>
+      <td class="note">ECS Cluster with Fargate is just a namespace — no infra to manage.</td>
+    </tr>
+    <tr>
+      <td>Replica management</td>
+      <td class="azure">Min/max replicas on Container App</td>
+      <td class="aws">ECS Service desiredCount + Auto Scaling</td>
+      <td class="note">Same concept; ECS auto-scaling is configured separately as an Application Auto Scaling policy.</td>
+    </tr>
+    <tr>
+      <td>Secret injection</td>
+      <td class="azure">Key Vault reference in Container App</td>
+      <td class="aws">secretsmanager ARN in Task Definition "secrets"</td>
+      <td class="note">Nearly identical — both inject secrets as env vars at startup without storing them in config.</td>
+    </tr>
+    <tr>
+      <td>Container networking</td>
+      <td class="azure">VNet integration per replica</td>
+      <td class="aws">awsvpc mode — own ENI per task</td>
+      <td class="note">Each ECS Fargate task gets its own IP in the VPC — cleaner isolation than shared host networking.</td>
+    </tr>
+    <tr>
+      <td>Load balancing</td>
+      <td class="azure">Built into Container Apps ingress</td>
+      <td class="aws">Explicit ALB + Target Group</td>
+      <td class="note">ECS does not include load balancing — you wire the ALB to the Service's Target Group yourself. More control, more config.</td>
+    </tr>
+    <tr>
+      <td>Managed Kubernetes</td>
+      <td class="azure">AKS</td>
+      <td class="aws">EKS</td>
+      <td class="note">Use ECS Fargate for most web APIs. Only move to EKS if you need Kubernetes-specific features or have an existing Helm ecosystem.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on ECS Fargate.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. What is the difference between an ECS Task and an ECS Service?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A Task is the configuration blueprint; a Service is the running instance</label>
+      <label><input type="radio" name="q1" value="b"> A Task is a single running container instance; a Service keeps a desired count of Tasks running and integrates with the load balancer</label>
+      <label><input type="radio" name="q1" value="c"> A Task runs continuously; a Service runs once and exits</label>
+      <label><input type="radio" name="q1" value="d"> They are the same thing — "Service" is just the AWS console name for a Task</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. A Task is one running container instance (like a pod). A Service is the manager that maintains N Tasks, replaces failed ones, handles rolling deployments, and registers Tasks with the ALB.','Not quite. The Task Definition is the blueprint. A Task is one running instance of it. A Service is what keeps your desired number of Tasks alive, wires them to the ALB, and handles deployments.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. You need to pass your PostgreSQL connection string to your ECS container. Where in the Task Definition should it go?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> In the "environment" array as a plain key-value pair</label>
+      <label><input type="radio" name="q2" value="b"> Baked into the Docker image as an ENV instruction in the Dockerfile</label>
+      <label><input type="radio" name="q2" value="c"> In the "secrets" array, referencing the Secrets Manager ARN</label>
+      <label><input type="radio" name="q2" value="d"> In an S3 file that the container downloads on startup</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','c','Correct. The "secrets" field references a Secrets Manager ARN. ECS fetches the value at task startup and injects it as an environment variable — it never appears in plaintext in the Task Definition or in logs.','Not quite. Plain "environment" values are visible in the AWS console and API responses in plaintext. Secrets must go in the "secrets" field with a Secrets Manager ARN reference. Never bake credentials into a Docker image.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. You deploy a new Docker image to your ECS Service. One of the 2 running Tasks crashes immediately after starting. What does the ECS Service do?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Stops the entire deployment and rolls back automatically to the previous Task Definition</label>
+      <label><input type="radio" name="q3" value="b"> Leaves 1 Task running (the old revision) and keeps retrying the new Task, emitting events you can monitor</label>
+      <label><input type="radio" name="q3" value="c"> Terminates both Tasks and waits for manual intervention</label>
+      <label><input type="radio" name="q3" value="d"> Scales up to 4 Tasks to compensate for the failure</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. ECS keeps the healthy old-revision Task running (maintaining availability) and repeatedly attempts to start the new revision. It emits service events you can monitor in the console or CloudWatch. You must investigate the failure — ECS does not auto-rollback by default.','Not quite. ECS does not auto-rollback. It keeps the old working Task alive and keeps retrying the failed new Task, logging events. You need to watch service events and manually trigger a rollback by updating the Service to the previous Task Definition revision.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. Your ECS Task fails to pull its Docker image from ECR with an "access denied" error. Which role needs fixing?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> The Task Role — it controls what your application code can access</label>
+      <label><input type="radio" name="q4" value="b"> The Task Execution Role — it is used by the ECS agent to pull images before your code runs</label>
+      <label><input type="radio" name="q4" value="c"> The Cluster Role — it controls which registries the cluster can access</label>
+      <label><input type="radio" name="q4" value="d"> The ALB Role — it routes traffic to the container and needs ECR access</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Image pulling from ECR happens at task startup, before your application code runs. This is the ECS agent\'s job, and it uses the Task Execution Role. The fix: attach the AWS-managed policy AmazonECSTaskExecutionRolePolicy to the Execution Role.','Not quite. Recall from Lesson 3: the Task Execution Role is what the ECS infrastructure uses to pull images and write logs. The Task Role is what your running application code uses. ECR image pulling = Execution Role.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  ECS hierarchy: <strong>Cluster → Service → Task Definition → Task</strong>. The Service is what keeps your API running, wired to the ALB, and deployed with zero downtime. Always use Fargate (no EC2 to manage), <code>awsvpc</code> networking (each task its own IP), <code>"secrets"</code> for credentials (never <code>"environment"</code>), and <code>awslogs</code> driver (logs to CloudWatch automatically). Start at 512 CPU / 1024 MB and scale from there.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">← Lesson 1: Architecture Map</a> ·
+  <a href="0002-vpc-networking.html">← Lesson 2: VPC</a> ·
+  <a href="0003-iam.html">← Lesson 3: IAM</a><br><br>
+  <strong>Next:</strong> <em>Lesson 5 — RDS: Managed PostgreSQL for a Financial App (Multi-AZ, backups, encryption, and connecting from ECS)</em><br><br>
+  <strong>Ask your teacher anything:</strong> Blue/green deployments, ECS vs EKS trade-offs, how to run database migrations as ECS tasks, Fargate Spot — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/Welcome.html" target="_blank">Amazon ECS Developer Guide</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/AWS_Fargate.html" target="_blank">AWS Fargate</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html" target="_blank">Task Definition Parameters</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-auto-scaling.html" target="_blank">ECS Auto Scaling</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

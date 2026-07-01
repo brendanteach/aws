@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 7 — The Complete Architecture</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --blue: #2471a3;
+    --red: #c0392b;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 780px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+
+  /* ─── ARCHITECTURE DIAGRAM ─── */
+  .diagram {
+    border: 2px solid var(--ink);
+    border-radius: 8px;
+    background: #fdfcfa;
+    padding: 1.4rem;
+    margin: 1.5rem 0 2rem;
+    font-family: sans-serif;
+    font-size: 0.75rem;
+    position: relative;
+  }
+
+  .diagram-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: bold;
+    color: var(--muted);
+    margin-bottom: 1.1rem;
+  }
+
+  /* Internet bar */
+  .inet-bar {
+    background: var(--ink);
+    color: white;
+    text-align: center;
+    padding: 0.35rem 0;
+    border-radius: 4px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Center vertical connector */
+  .v-center { display: flex; justify-content: center; }
+  .v-line { width: 2px; height: 0.6rem; background: var(--border); }
+  .h-arrow { text-align: center; color: var(--muted); font-size: 0.9rem; line-height: 1; margin: 0.1rem 0; }
+
+  /* Edge row: Route 53 + CloudFront */
+  .edge-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+    align-items: stretch;
+  }
+
+  /* Split paths */
+  .paths-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-bottom: 0.5rem;
+    align-items: start;
+  }
+
+  /* VPC container */
+  .vpc-wrap {
+    border: 2px solid var(--purple);
+    border-radius: 6px;
+    padding: 0.8rem;
+    background: #fdfaff;
+    position: relative;
+  }
+
+  .vpc-label {
+    position: absolute;
+    top: -0.65rem;
+    left: 0.8rem;
+    background: #fdfaff;
+    padding: 0 0.35rem;
+    font-size: 0.65rem;
+    font-weight: bold;
+    color: var(--purple);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Generic service box */
+  .svc {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.4rem 0.65rem;
+    background: white;
+    line-height: 1.45;
+  }
+
+  .svc .sname  { font-weight: bold; color: var(--ink); font-size: 0.78rem; }
+  .svc .ssub   { color: var(--muted); font-size: 0.67rem; }
+  .svc .stag   { display: inline-block; font-size: 0.62rem; background: var(--light); border: 1px solid var(--border); border-radius: 2px; padding: 0.05rem 0.3rem; margin-top: 0.15rem; color: var(--muted); }
+
+  .svc.orange  { border-color: var(--aws-orange); background: #fffdf5; }
+  .svc.green   { border-color: var(--green);      background: #f5fbf5; }
+  .svc.blue    { border-color: var(--blue);        background: #f5f8fb; }
+  .svc.purple  { border-color: var(--purple);      background: #fdf8ff; }
+  .svc.amber   { border-color: #e59800;            background: #fdf5e6; }
+
+  /* Subnet rows */
+  .subnet-row {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .subnet-row.two   { grid-template-columns: 1fr 1fr; }
+  .subnet-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .subnet-label {
+    font-size: 0.62rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .sub-public  { background: #f0faf0; border: 1px dashed #7dba7d; border-radius: 4px; padding: 0.4rem 0.55rem; }
+  .sub-private { background: #f0f4fb; border: 1px dashed #8aabd4; border-radius: 4px; padding: 0.4rem 0.55rem; }
+  .sub-db      { background: #fdf8f0; border: 1px dashed #d4a55a; border-radius: 4px; padding: 0.4rem 0.55rem; }
+
+  /* Side panel (global services) */
+  .two-col-layout {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    gap: 1rem;
+    align-items: start;
+    margin: 1.5rem 0 2rem;
+  }
+
+  .side-panel { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .side-title {
+    font-family: sans-serif;
+    font-size: 0.68rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.1rem;
+  }
+
+  /* Callouts */
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+
+  /* Build order */
+  .build-phases { margin: 1rem 0 2rem; }
+
+  .phase {
+    border-left: 3px solid var(--aws-orange);
+    margin-bottom: 1.2rem;
+    padding-left: 1rem;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .phase-num {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: white;
+    background: var(--aws-orange);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .phase-title { font-weight: bold; font-size: 0.95rem; }
+  .phase-time  { font-family: sans-serif; font-size: 0.75rem; color: var(--muted); }
+
+  .phase-items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 1rem;
+    margin-top: 0.3rem;
+  }
+
+  .phase-item {
+    font-size: 0.85rem;
+    color: var(--ink);
+    padding-left: 1rem;
+    position: relative;
+  }
+
+  .phase-item::before { content: "→"; position: absolute; left: 0; color: var(--aws-orange); }
+  .phase-item .dep    { color: var(--muted); font-size: 0.78rem; }
+
+  /* Decision table */
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.92rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+  .rec   { color: var(--green); font-weight: bold; }
+
+  /* Connection map */
+  .conn-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 0 0;
+    margin: 1rem 0 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 0.87rem;
+  }
+
+  .conn-row {
+    display: contents;
+  }
+
+  .conn-from {
+    padding: 0.5rem 0.8rem;
+    font-weight: bold;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    color: var(--aws-orange);
+    background: #fdf9f0;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+  }
+
+  .conn-to {
+    padding: 0.5rem 0.8rem;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink);
+    font-size: 0.83rem;
+    line-height: 1.5;
+  }
+
+  .conn-row:last-child .conn-from,
+  .conn-row:last-child .conn-to { border-bottom: none; }
+
+  /* Lesson map */
+  .lesson-map {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    margin: 1rem 0 1.5rem;
+  }
+
+  .lm-card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.65rem 0.8rem;
+    background: white;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+  }
+
+  .lm-num  { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .lm-name { font-weight: bold; color: var(--ink); margin: 0.1rem 0 0.2rem; }
+  .lm-svc  { color: var(--aws-orange); font-size: 0.72rem; line-height: 1.6; }
+
+  .lm-card a { text-decoration: none; color: inherit; }
+  .lm-card:hover { border-color: var(--aws-orange); }
+
+  /* Quiz */
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 07 · Capstone</div>
+  <h1>The Complete Architecture</h1>
+  <div class="subtitle">Every service connected, provisioning order, and the decisions still ahead</div>
+</header>
+
+<p>You have covered six services across six lessons. This lesson does three things: draws the complete architecture with every connection labeled, gives you a sequenced build order (what to provision first and why), and surfaces the key decisions you still need to make before going to production.</p>
+
+<h2>The Full Architecture</h2>
+
+<div class="diagram">
+  <div class="diagram-title">Financial Web App on AWS — all services</div>
+
+  <!-- Internet -->
+  <div class="inet-bar">Internet</div>
+  <div class="v-center"><div class="v-line"></div></div>
+  <div class="h-arrow">↓</div>
+
+  <!-- Edge: Route 53 + CloudFront -->
+  <div class="edge-row">
+    <div class="svc orange">
+      <div class="sname">Route 53</div>
+      <div class="ssub">DNS · Alias records</div>
+      <div class="stag">Global</div>
+    </div>
+    <div class="svc orange">
+      <div class="sname">CloudFront</div>
+      <div class="ssub">
+        CDN · TLS (ACM cert, us-east-1) · WAF<br>
+        <strong>/api/*</strong> → ALB &nbsp;·&nbsp; <strong>/*</strong> → S3
+      </div>
+      <div class="stag">Global · 400+ edge locations</div>
+    </div>
+  </div>
+
+  <div style="margin:0.5rem 0; display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; text-align:center; font-family:sans-serif; font-size:0.72rem; color:var(--muted);">
+    <div>↓ /* (frontend)</div>
+    <div>↓ /api/* (backend)</div>
+  </div>
+
+  <!-- Two columns: S3 and VPC -->
+  <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.8rem; align-items:start;">
+
+    <!-- Left: S3 frontend -->
+    <div>
+      <div class="svc green" style="margin-bottom:0.4rem;">
+        <div class="sname">S3 — finapp-frontend</div>
+        <div class="ssub">index.html · assets/<br>Private · OAC policy</div>
+        <div class="stag">Lesson 6</div>
+      </div>
+      <div style="text-align:center; font-family:sans-serif; font-size:0.68rem; color:var(--muted); margin:0.4rem 0;">↑ aws s3 sync on deploy</div>
+      <div class="svc" style="font-family:sans-serif; font-size:0.72rem; text-align:center; color:var(--muted); background:#f8f8f8;">
+        <div>npm run build</div>
+        <div>→ dist/</div>
+      </div>
+    </div>
+
+    <!-- Right: VPC -->
+    <div class="vpc-wrap">
+      <span class="vpc-label">VPC — us-east-1 — 10.0.0.0/16</span>
+
+      <!-- Public subnets -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+        <div class="sub-public">
+          <div class="subnet-label">Public · 1a</div>
+          <div class="svc orange" style="margin-bottom:0.3rem;">
+            <div class="sname">ALB</div>
+            <div class="ssub">HTTPS 443 · TLS</div>
+          </div>
+          <div class="svc" style="font-size:0.7rem; text-align:center; background:#f8f8f8;">
+            <div style="color:var(--muted);">NAT Gateway</div>
+          </div>
+        </div>
+        <div class="sub-public">
+          <div class="subnet-label">Public · 1b</div>
+          <div class="svc orange">
+            <div class="sname">ALB node</div>
+            <div class="ssub">HA second AZ</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:0.72rem; color:var(--muted); margin:0.2rem 0;">↓ ALB routes to Target Group</div>
+
+      <!-- Private subnets (ECS) -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+        <div class="sub-private">
+          <div class="subnet-label">Private · 1a</div>
+          <div class="svc blue">
+            <div class="sname">ECS Fargate Task</div>
+            <div class="ssub">API · port 8080<br>Task Role · ENI</div>
+            <div class="stag">Lesson 4</div>
+          </div>
+        </div>
+        <div class="sub-private">
+          <div class="subnet-label">Private · 1b</div>
+          <div class="svc blue">
+            <div class="sname">ECS Fargate Task</div>
+            <div class="ssub">API · port 8080<br>Task Role · ENI</div>
+            <div class="stag">Lesson 4</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:0.72rem; color:var(--muted); margin:0.2rem 0;">↓ ECS → RDS Proxy → RDS</div>
+
+      <!-- DB subnets -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem;">
+        <div class="sub-db">
+          <div class="subnet-label">DB · 1a</div>
+          <div class="svc amber">
+            <div class="sname">RDS Primary</div>
+            <div class="ssub">PostgreSQL 16<br>Encrypted · SSL</div>
+            <div class="stag">Lesson 5</div>
+          </div>
+        </div>
+        <div class="sub-db">
+          <div class="subnet-label">DB · 1b</div>
+          <div class="svc" style="background:#f8f8f8; border-color:#ccc;">
+            <div class="sname" style="color:var(--muted);">RDS Standby</div>
+            <div class="ssub">Sync replica<br>Auto-failover ~60s</div>
+          </div>
+        </div>
+        <div class="sub-db">
+          <div class="subnet-label">DB · 1a/1b</div>
+          <div class="svc green">
+            <div class="sname">ElastiCache</div>
+            <div class="ssub">Redis · sessions<br>rate limits · cache</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VPC Endpoints row -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem;">
+        <div class="svc" style="font-size:0.72rem; background:#f8f8f8; text-align:center;">
+          <div style="font-weight:bold;">VPC Endpoint — S3</div>
+          <div style="color:var(--muted);">ECS → S3 (no NAT)</div>
+        </div>
+        <div class="svc" style="font-size:0.72rem; background:#f8f8f8; text-align:center;">
+          <div style="font-weight:bold;">VPC Endpoint — Secrets Manager</div>
+          <div style="color:var(--muted);">ECS → secrets (no NAT)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global services row -->
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-top:0.8rem; padding-top:0.8rem; border-top:1px dashed var(--border);">
+    <div class="svc purple">
+      <div class="sname">IAM</div>
+      <div class="ssub">Task Role<br>Execution Role</div>
+      <div class="stag">Lesson 3</div>
+    </div>
+    <div class="svc">
+      <div class="sname">Secrets Manager</div>
+      <div class="ssub">DB URL · API keys<br>Rotated automatically</div>
+    </div>
+    <div class="svc">
+      <div class="sname">CloudWatch</div>
+      <div class="ssub">Logs · Metrics<br>Alarms · X-Ray</div>
+    </div>
+    <div class="svc">
+      <div class="sname">ECR</div>
+      <div class="ssub">Docker image<br>registry · private</div>
+    </div>
+  </div>
+</div>
+
+<h2>Every Service Connection</h2>
+
+<p>Each arrow in the diagram above has a specific protocol, authorization, and lesson behind it.</p>
+
+<div class="conn-grid">
+  <div class="conn-row">
+    <div class="conn-from">User → CloudFront</div>
+    <div class="conn-to">HTTPS 443 · TLS 1.2+ · ACM cert (us-east-1) · WAF filters before origin</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">CloudFront → S3</div>
+    <div class="conn-to">HTTPS · OAC-signed requests · bucket policy allows only this distribution's ARN</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">CloudFront → ALB</div>
+    <div class="conn-to">HTTPS on /api/* path · ALB security group allows inbound 443 from CloudFront IP ranges</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ALB → ECS Tasks</div>
+    <div class="conn-to">HTTP 8080 · ECS security group allows inbound 8080 from ALB security group ID only</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → RDS Proxy</div>
+    <div class="conn-to">PostgreSQL 5432 · TLS (sslmode=require) · RDS SG allows 5432 from ECS SG only</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → ElastiCache</div>
+    <div class="conn-to">Redis 6379 · ElastiCache SG allows 6379 from ECS SG only · both in private subnets</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → S3</div>
+    <div class="conn-to">HTTPS · via VPC Gateway Endpoint (no NAT) · IAM Task Role s3:GetObject / s3:PutObject on specific bucket ARN</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → Secrets Manager</div>
+    <div class="conn-to">HTTPS · via VPC Interface Endpoint (no NAT) · IAM Task Role secretsmanager:GetSecretValue on specific secret ARN</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → ECR</div>
+    <div class="conn-to">HTTPS · via NAT Gateway (ECR Interface Endpoint optional) · Execution Role ecr:GetDownloadUrlForLayer</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">ECS → CloudWatch</div>
+    <div class="conn-to">awslogs driver sends stdout/stderr · Execution Role logs:CreateLogStream, logs:PutLogEvents</div>
+  </div>
+  <div class="conn-row">
+    <div class="conn-from">RDS → S3</div>
+    <div class="conn-to">Automated backups and snapshots stored in AWS-managed S3 (transparent, no config needed)</div>
+  </div>
+</div>
+
+<h2>Provisioning Order</h2>
+
+<p>AWS resources depend on each other. Provision in this sequence — each phase can proceed in parallel within itself, but must complete before the next phase starts.</p>
+
+<div class="build-phases">
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">Phase 1</span>
+      <span class="phase-title">Foundation — no dependencies</span>
+      <span class="phase-time">~5 min</span>
+    </div>
+    <div class="phase-items">
+      <div class="phase-item">VPC + subnets + route tables <span class="dep">(everything lives here)</span></div>
+      <div class="phase-item">Internet Gateway + NAT Gateway</div>
+      <div class="phase-item">Security Groups (all four: ALB, ECS, RDS, Redis)</div>
+      <div class="phase-item">IAM roles (Task Role + Execution Role)</div>
+      <div class="phase-item">ACM certificate request in us-east-1 <span class="dep">(DNS validation — start early)</span></div>
+      <div class="phase-item">ECR repository</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">Phase 2</span>
+      <span class="phase-title">Data + secrets — needs VPC + IAM</span>
+      <span class="phase-time">~15 min (RDS takes longest)</span>
+    </div>
+    <div class="phase-items">
+      <div class="phase-item">KMS key for RDS encryption</div>
+      <div class="phase-item">DB Subnet Group <span class="dep">(needs subnets)</span></div>
+      <div class="phase-item">RDS PostgreSQL Multi-AZ <span class="dep">(needs subnet group, KMS, SG)</span></div>
+      <div class="phase-item">ElastiCache Redis <span class="dep">(needs subnets, SG)</span></div>
+      <div class="phase-item">Secrets Manager secrets <span class="dep">(needs RDS endpoint to build URL)</span></div>
+      <div class="phase-item">VPC Endpoints for S3 + Secrets Manager</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">Phase 3</span>
+      <span class="phase-title">Compute — needs everything above</span>
+      <span class="phase-time">~5 min</span>
+    </div>
+    <div class="phase-items">
+      <div class="phase-item">Build + push Docker image to ECR</div>
+      <div class="phase-item">ECS Cluster</div>
+      <div class="phase-item">ECS Task Definition <span class="dep">(needs ECR image, IAM roles, secrets ARNs)</span></div>
+      <div class="phase-item">ALB + Target Group + Listener</div>
+      <div class="phase-item">ECS Service <span class="dep">(needs task def, ALB target group, subnets, SG)</span></div>
+      <div class="phase-item">RDS Proxy <span class="dep">(needs RDS instance, IAM role)</span></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">Phase 4</span>
+      <span class="phase-title">Frontend + DNS — needs ACM cert to be validated</span>
+      <span class="phase-time">~10 min (CloudFront deploys slowly)</span>
+    </div>
+    <div class="phase-items">
+      <div class="phase-item">S3 bucket (private, block public access)</div>
+      <div class="phase-item">Build SPA + sync to S3</div>
+      <div class="phase-item">CloudFront distribution <span class="dep">(needs S3, ACM cert, ALB)</span></div>
+      <div class="phase-item">OAC + S3 bucket policy</div>
+      <div class="phase-item">Custom error responses (SPA routing fix)</div>
+      <div class="phase-item">Route 53 Alias records <span class="dep">(needs CloudFront domain)</span></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-num">Phase 5</span>
+      <span class="phase-title">Operations — add after first successful deploy</span>
+      <span class="phase-time">ongoing</span>
+    </div>
+    <div class="phase-items">
+      <div class="phase-item">CloudWatch alarms (CPU, memory, DB connections, 5xx errors)</div>
+      <div class="phase-item">AWS WAF rules on CloudFront (OWASP managed rule group)</div>
+      <div class="phase-item">ECS auto-scaling policy</div>
+      <div class="phase-item">CloudWatch dashboard</div>
+      <div class="phase-item">SNS topic → email/PagerDuty for alarm notifications</div>
+      <div class="phase-item">RDS Performance Insights enabled</div>
+    </div>
+  </div>
+</div>
+
+<div class="callout warn">
+  <strong>Use Infrastructure as Code from day one</strong>
+  Do not click through the AWS console to build this. Use <strong>Terraform</strong> (most widely used, large ecosystem) or <strong>AWS CDK</strong> (TypeScript/Python code that generates CloudFormation). Console-built infrastructure cannot be reproduced, reviewed in PRs, or safely destroyed and rebuilt. The provisioning order above is also your Terraform module dependency order.
+</div>
+
+<h2>Decisions Still to Make</h2>
+
+<p>These are not covered in the six lessons but must be decided before production.</p>
+
+<table>
+  <thead><tr><th>Decision</th><th>Options</th><th>Recommendation</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Infrastructure as Code</strong></td>
+      <td class="note">Terraform · AWS CDK · CloudFormation · Pulumi</td>
+      <td class="rec">Terraform — largest community, provider ecosystem, readable HCL</td>
+    </tr>
+    <tr>
+      <td><strong>User authentication</strong></td>
+      <td class="note">Amazon Cognito · Auth0 · custom JWT</td>
+      <td class="rec">Cognito for AWS-native (free tier, MFA, social login). Auth0 if you need advanced customization.</td>
+    </tr>
+    <tr>
+      <td><strong>CI/CD pipeline</strong></td>
+      <td class="note">GitHub Actions · AWS CodePipeline · GitLab CI</td>
+      <td class="rec">GitHub Actions — widest adoption, good AWS integrations via OIDC (no stored access keys)</td>
+    </tr>
+    <tr>
+      <td><strong>Async job processing</strong></td>
+      <td class="note">SQS + Lambda · SQS + ECS task · EventBridge</td>
+      <td class="rec">SQS + Lambda for lightweight jobs (email alerts, notifications). SQS + ECS task for heavy processing (trade reconciliation, report generation).</td>
+    </tr>
+    <tr>
+      <td><strong>Observability</strong></td>
+      <td class="note">CloudWatch only · Datadog · Grafana + Prometheus</td>
+      <td class="rec">Start with CloudWatch (zero setup). Add Datadog or Grafana when you need cross-service dashboards or better alerting UX.</td>
+    </tr>
+    <tr>
+      <td><strong>Database engine</strong></td>
+      <td class="note">RDS PostgreSQL · Aurora PostgreSQL · Aurora Serverless v2</td>
+      <td class="rec">RDS PostgreSQL to start (simpler, cheaper). Migrate to Aurora if you need read replicas, faster failover (&lt;30s), or serverless scaling for unpredictable load.</td>
+    </tr>
+    <tr>
+      <td><strong>Secrets rotation</strong></td>
+      <td class="note">Manual rotation · Secrets Manager auto-rotation</td>
+      <td class="rec">Enable Secrets Manager auto-rotation for the RDS password — it rotates the credential and updates the secret automatically on a schedule.</td>
+    </tr>
+    <tr>
+      <td><strong>Multi-region</strong></td>
+      <td class="note">Single region · Active-passive · Active-active</td>
+      <td class="rec">Single region (us-east-1) to start. Add a passive DR region only when uptime SLA demands it — multi-region complexity is significant.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>What You Can Draw From Memory Now</h2>
+
+<div class="callout finance">
+  <strong>The test: draw the architecture without looking</strong>
+  If you can draw the diagram below from memory — labeling every service and every arrow — you understand the architecture well enough to make real production decisions.<br><br>
+
+  <strong>Internet → Route 53 → CloudFront</strong><br>
+  CloudFront → S3 (OAC, frontend)<br>
+  CloudFront → ALB (HTTPS, /api/*)<br>
+  ALB → ECS Fargate (HTTP 8080, private subnet)<br>
+  ECS → RDS Proxy → RDS Multi-AZ (PostgreSQL 5432, TLS, DB subnet)<br>
+  ECS → ElastiCache Redis (6379, DB subnet)<br>
+  ECS → S3 via VPC Endpoint (IAM Task Role)<br>
+  ECS → Secrets Manager via VPC Endpoint (IAM Task Role)<br>
+  IAM Task Execution Role → ECR + CloudWatch<br>
+  All backend resources inside VPC · Public subnets: ALB + NAT · Private: ECS · DB: RDS + Redis
+</div>
+
+<h2>All Lessons in This Series</h2>
+
+<div class="lesson-map">
+  <div class="lm-card"><a href="0001-aws-architecture-map.html">
+    <div class="lm-num">Lesson 1</div>
+    <div class="lm-name">Architecture Map</div>
+    <div class="lm-svc">Azure → AWS service map · Full stack overview · 18 service translations</div>
+  </a></div>
+  <div class="lm-card"><a href="0002-vpc-networking.html">
+    <div class="lm-num">Lesson 2</div>
+    <div class="lm-name">VPC Networking</div>
+    <div class="lm-svc">Subnets · IGW · NAT Gateway · Security Groups · VPC Endpoints</div>
+  </a></div>
+  <div class="lm-card"><a href="0003-iam.html">
+    <div class="lm-num">Lesson 3</div>
+    <div class="lm-name">IAM</div>
+    <div class="lm-svc">Roles · Policies · ARNs · Task Role vs Execution Role · Least privilege</div>
+  </a></div>
+  <div class="lm-card"><a href="0004-ecs-fargate.html">
+    <div class="lm-num">Lesson 4</div>
+    <div class="lm-name">ECS Fargate</div>
+    <div class="lm-svc">Cluster · Task Definition · Service · ECR · Rolling deploys · Secrets injection</div>
+  </a></div>
+  <div class="lm-card"><a href="0005-rds.html">
+    <div class="lm-num">Lesson 5</div>
+    <div class="lm-name">RDS PostgreSQL</div>
+    <div class="lm-svc">Multi-AZ · Encryption · TLS · Backups · RDS Proxy · DB Subnet Group</div>
+  </a></div>
+  <div class="lm-card"><a href="0006-frontend-s3-cloudfront.html">
+    <div class="lm-num">Lesson 6</div>
+    <div class="lm-name">S3 + CloudFront</div>
+    <div class="lm-svc">OAC · ACM (us-east-1) · SPA deep links · Cache invalidation · Security headers</div>
+  </a></div>
+</div>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Final Architecture Quiz</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">These span the full stack — no single lesson, just the architecture as a whole.</p>
+
+  <div class="question" id="q1">
+    <p>1. A request for <code>GET /api/trades</code> enters your system. Put these services in the correct order it passes through.</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> CloudFront → Route 53 → ALB → ECS → RDS</label>
+      <label><input type="radio" name="q1" value="b"> Route 53 → CloudFront → ALB → ECS → RDS Proxy → RDS</label>
+      <label><input type="radio" name="q1" value="c"> Route 53 → ALB → CloudFront → ECS → RDS</label>
+      <label><input type="radio" name="q1" value="d"> CloudFront → ALB → Route 53 → ECS → RDS</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Route 53 resolves the DNS, CloudFront handles TLS and routes /api/* to the ALB, ALB forwards to an ECS task, the task queries RDS via RDS Proxy. Route 53 always comes before CloudFront — it is the DNS resolution step.','Not quite. The order is: DNS resolution (Route 53) → CDN/TLS (CloudFront) → Load balancer (ALB) → App server (ECS) → Database (via RDS Proxy → RDS). Route 53 always comes first — CloudFront\'s IP is what Route 53 resolves to.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Your ECS task needs to call Secrets Manager to fetch the Alpaca API key at startup. Which two AWS features work together to make this secure and free of NAT costs?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Internet Gateway + public subnet placement for ECS</label>
+      <label><input type="radio" name="q2" value="b"> IAM Task Role (permission to call Secrets Manager) + VPC Interface Endpoint (private network path)</label>
+      <label><input type="radio" name="q2" value="c"> NAT Gateway + Secrets Manager resource policy</label>
+      <label><input type="radio" name="q2" value="d"> Security Group outbound rule + S3 Gateway Endpoint</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. The IAM Task Role grants secretsmanager:GetSecretValue permission. The VPC Interface Endpoint routes that API call through the private AWS network, bypassing the NAT Gateway — no data processing cost, no public internet traversal.','Not quite. Two things are needed: permission (IAM Task Role with secretsmanager:GetSecretValue) and a private network path (VPC Interface Endpoint for Secrets Manager). Without the endpoint, the call goes via NAT Gateway to the public internet — more expensive and less secure.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. You need to run a one-off database migration script after deploying new backend code. What is the right approach on AWS?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> SSH into the RDS instance and run the migration directly</label>
+      <label><input type="radio" name="q3" value="b"> Run an ECS Task (not a Service) with the migration command, in the same private subnet and security group as the API</label>
+      <label><input type="radio" name="q3" value="c"> Temporarily make RDS public, run migration from a local machine, then make it private again</label>
+      <label><input type="radio" name="q3" value="d"> Run the migration from a Lambda function triggered by an S3 upload</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. A one-off ECS Task (not a Service) is ideal for migrations. It runs your migration container in the private subnet with the same security group and IAM role as your API — so it can reach RDS on port 5432. It exits when done and ECS cleans it up. This is the standard pattern.','Not quite. RDS has no SSH access and must never be made public. The standard approach is a one-off ECS Task: spin up a container with your migration tooling in the same private subnet and security group as your API, run the migration, and let the task exit. No persistent infrastructure needed.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. You want to add user login to your financial app. Users should be able to register, log in with MFA, and receive JWT tokens your ECS API can validate. Which AWS service handles this?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> AWS IAM — create IAM users for each app user</label>
+      <label><input type="radio" name="q4" value="b"> Amazon Cognito User Pools — managed user directory with MFA, JWT, and OAuth flows</label>
+      <label><input type="radio" name="q4" value="c"> AWS Secrets Manager — store usernames and hashed passwords as secrets</label>
+      <label><input type="radio" name="q4" value="d"> Amazon RDS — store users in a PostgreSQL table and write custom auth logic</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Amazon Cognito User Pools is the AWS-managed user directory. It handles registration, login, MFA, password reset, and issues JWT tokens (ID token + access token). Your ECS API validates those JWTs without calling Cognito on every request — just verify the signature against Cognito\'s public key.','Not quite. IAM is for AWS resource access, not app users. Cognito User Pools is the right service — it is a fully managed user directory that issues JWTs, supports MFA and social login, and is the direct AWS equivalent of Azure AD B2C.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Series complete</strong>
+  You now have the full mental model for a production financial web app on AWS: VPC with three subnet tiers, IAM roles on every service, ECS Fargate for compute, RDS Multi-AZ for data, CloudFront + S3 for frontend, and the security patterns (OAC, force_ssl, Secrets Manager, VPC Endpoints) that make it finance-grade. The next step is writing Terraform and deploying a first environment. Ask your teacher for a guided Terraform module walkthrough, or dive into any of the remaining decisions above.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">L1: Architecture</a> ·
+  <a href="0002-vpc-networking.html">L2: VPC</a> ·
+  <a href="0003-iam.html">L3: IAM</a> ·
+  <a href="0004-ecs-fargate.html">L4: ECS</a> ·
+  <a href="0005-rds.html">L5: RDS</a> ·
+  <a href="0006-frontend-s3-cloudfront.html">L6: Frontend</a><br><br>
+  <strong>What's next:</strong> Cognito authentication · Terraform module walkthrough · SQS + Lambda for async jobs · CloudWatch alarms and dashboards · CI/CD with GitHub Actions<br><br>
+  <strong>Ask your teacher:</strong> Request any of the above as a next lesson, or ask a question about any part of the architecture.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://aws.amazon.com/architecture/well-architected/" target="_blank">AWS Well-Architected Framework</a> ·
+  <a href="https://aws.amazon.com/architecture/reference-architecture-diagrams/" target="_blank">AWS Reference Architecture Diagrams</a> ·
+  <a href="https://aws.amazon.com/financial-services/" target="_blank">AWS Financial Services</a> ·
+  <a href="https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html" target="_blank">Amazon Cognito</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

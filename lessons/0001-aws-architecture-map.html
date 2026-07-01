@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 1 — AWS Architecture Map for a Financial Web App</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article {
+    max-width: 720px;
+    margin: 3rem auto 6rem;
+  }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 {
+    font-size: 1.9rem;
+    font-weight: normal;
+    line-height: 1.25;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 1rem;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin: 2.5rem 0 0.8rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: bold;
+    margin: 1.5rem 0 0.4rem;
+    color: var(--ink);
+  }
+
+  p { margin-bottom: 1rem; }
+
+  a { color: var(--accent); }
+
+  /* Architecture diagram */
+  .arch-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  /* Mapping table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+
+  thead tr {
+    background: var(--ink);
+    color: white;
+  }
+
+  th {
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  td {
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: var(--light); }
+
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Callout box */
+  .callout {
+    background: #fff8e6;
+    border: 1px solid #f0c040;
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+
+  .callout.finance {
+    background: #eaf4ea;
+    border-color: var(--green);
+    border-left-color: var(--green);
+  }
+
+  /* Quiz */
+  .quiz {
+    background: var(--light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 2.5rem 0;
+  }
+
+  .quiz h2 {
+    border: none;
+    margin-top: 0;
+    color: var(--ink);
+  }
+
+  .question {
+    margin-bottom: 1.5rem;
+  }
+
+  .question p {
+    font-weight: bold;
+    margin-bottom: 0.6rem;
+  }
+
+  .options label {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    margin: 0.25rem 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    transition: background 0.15s;
+  }
+
+  .options label:hover { background: #f0eee8; }
+
+  .options input[type=radio] { margin-right: 0.5rem; }
+
+  .feedback {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 3px;
+    font-size: 0.88rem;
+    display: none;
+  }
+
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+
+  .check-btn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-family: sans-serif;
+  }
+
+  .check-btn:hover { background: #333; }
+
+  /* Navigation */
+  .lesson-nav {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-family: sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 01 · AWS Architecture</div>
+  <h1>The AWS Map for a Financial Web App</h1>
+  <div class="subtitle">From Azure mental model to AWS architecture in one session</div>
+</header>
+
+<p>You already know how cloud applications are structured. You know about VNets, App Services, Blob Storage, and SQL databases from Azure. That's a significant advantage — AWS covers the same territory, just with different names and a few important structural differences.</p>
+
+<p>This lesson maps the full stack of a financial web app onto AWS services. By the end, you'll be able to draw the architecture and name the right service for each layer.</p>
+
+<h2>The Architecture We're Building Toward</h2>
+
+<p>A financial web app — think a trading dashboard, portfolio tracker, or banking interface — needs these layers:</p>
+
+<div class="arch-diagram">┌─────────────────────────────────────────────────────┐
+│                    INTERNET                         │
+└──────────────────────┬──────────────────────────────┘
+                       │
+              ┌────────▼────────┐
+              │   Route 53      │  DNS
+              │   CloudFront    │  CDN + edge cache
+              └────────┬────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         │                           │
+┌────────▼────────┐       ┌──────────▼──────────┐
+│   S3 Bucket     │       │  Application Load    │
+│  (Frontend SPA) │       │  Balancer (ALB)      │
+└─────────────────┘       └──────────┬───────────┘
+                                     │
+                          ┌──────────▼───────────┐
+                          │   ECS / Fargate       │
+                          │   (Backend API)       │
+                          └──────────┬────────────┘
+                                     │
+               ┌─────────────────────┼─────────────────────┐
+               │                     │                       │
+    ┌──────────▼──────┐   ┌──────────▼──────┐   ┌──────────▼──────┐
+    │   RDS            │   │  ElastiCache    │   │   S3             │
+    │  (PostgreSQL)    │   │  (Redis)        │   │  (File storage)  │
+    └──────────────────┘   └─────────────────┘   └──────────────────┘
+
+All backend resources live inside a VPC (Virtual Private Cloud)
+with public subnets (ALB) and private subnets (ECS, RDS, Redis)</div>
+
+<div class="callout finance">
+  <strong>Finance requirement: Defense in depth</strong>
+  RDS and ElastiCache are <em>never</em> in public subnets. Only the ALB is internet-facing. This is a core security principle for financial apps — all data stores sit behind at least two network boundaries.
+</div>
+
+<h2>The Azure → AWS Service Map</h2>
+
+<p>Every service you used in Azure has a direct AWS counterpart. The table below is your translation dictionary.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Azure Service</th>
+      <th>AWS Equivalent</th>
+      <th>Key difference</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DNS</td>
+      <td class="azure">Azure DNS</td>
+      <td class="aws">Route 53</td>
+      <td class="note">Route 53 supports health-check based routing and failover natively</td>
+    </tr>
+    <tr>
+      <td>CDN</td>
+      <td class="azure">Azure CDN / Front Door</td>
+      <td class="aws">CloudFront</td>
+      <td class="note">CloudFront is tightly integrated with S3 for SPA hosting</td>
+    </tr>
+    <tr>
+      <td>Static hosting</td>
+      <td class="azure">Azure Static Web Apps</td>
+      <td class="aws">S3 + CloudFront</td>
+      <td class="note">No single "static web apps" service — you compose S3 + CloudFront yourself (or use Amplify)</td>
+    </tr>
+    <tr>
+      <td>Blob / Object storage</td>
+      <td class="azure">Azure Blob Storage</td>
+      <td class="aws">Amazon S3</td>
+      <td class="note">S3 is the foundational storage primitive in AWS — nearly everything uses it</td>
+    </tr>
+    <tr>
+      <td>PaaS containers</td>
+      <td class="azure">Azure Container Apps / AKS</td>
+      <td class="aws">ECS Fargate / EKS</td>
+      <td class="note">ECS Fargate = managed containers without managing servers (the common choice); EKS = full Kubernetes</td>
+    </tr>
+    <tr>
+      <td>Serverless functions</td>
+      <td class="azure">Azure Functions</td>
+      <td class="aws">AWS Lambda</td>
+      <td class="note">Same model; Lambda has a 15 min max timeout vs Azure's 10 min (consumption plan)</td>
+    </tr>
+    <tr>
+      <td>Load balancer</td>
+      <td class="azure">Azure Load Balancer / App Gateway</td>
+      <td class="aws">ALB (Application Load Balancer)</td>
+      <td class="note">ALB = Layer 7 (HTTP/HTTPS); NLB = Layer 4 (TCP). ALB is the default for web apps</td>
+    </tr>
+    <tr>
+      <td>Relational DB</td>
+      <td class="azure">Azure SQL / Azure Database for PostgreSQL</td>
+      <td class="aws">Amazon RDS</td>
+      <td class="note">RDS supports PostgreSQL, MySQL, SQL Server, Oracle. Multi-AZ option = high availability</td>
+    </tr>
+    <tr>
+      <td>NoSQL / Document DB</td>
+      <td class="azure">Azure Cosmos DB</td>
+      <td class="aws">Amazon DynamoDB</td>
+      <td class="note">DynamoDB requires careful key design upfront — less flexible than Cosmos for ad-hoc queries</td>
+    </tr>
+    <tr>
+      <td>Cache</td>
+      <td class="azure">Azure Cache for Redis</td>
+      <td class="aws">ElastiCache (Redis)</td>
+      <td class="note">Near-identical feature set</td>
+    </tr>
+    <tr>
+      <td>Virtual network</td>
+      <td class="azure">Azure VNet</td>
+      <td class="aws">Amazon VPC</td>
+      <td class="note">VPC is regional; subnets are per Availability Zone. AZs ≈ Azure Availability Zones</td>
+    </tr>
+    <tr>
+      <td>Identity / Auth</td>
+      <td class="azure">Azure AD B2C</td>
+      <td class="aws">Amazon Cognito</td>
+      <td class="note">Cognito handles user pools (login/signup) + identity pools (AWS credentials for users)</td>
+    </tr>
+    <tr>
+      <td>IAM / RBAC</td>
+      <td class="azure">Azure Active Directory + RBAC</td>
+      <td class="aws">AWS IAM</td>
+      <td class="note">IAM is more granular — every API call is authorized by IAM policies attached to roles</td>
+    </tr>
+    <tr>
+      <td>Secrets / Key Vault</td>
+      <td class="azure">Azure Key Vault</td>
+      <td class="aws">Secrets Manager + KMS</td>
+      <td class="note">Secrets Manager stores secrets; KMS manages encryption keys. Two separate services</td>
+    </tr>
+    <tr>
+      <td>Monitoring / Metrics</td>
+      <td class="azure">Azure Monitor / App Insights</td>
+      <td class="aws">CloudWatch</td>
+      <td class="note">CloudWatch does logs, metrics, and alarms. Add X-Ray for distributed tracing</td>
+    </tr>
+    <tr>
+      <td>Container registry</td>
+      <td class="azure">Azure Container Registry</td>
+      <td class="aws">Amazon ECR</td>
+      <td class="note">ECR integrates natively with ECS and EKS</td>
+    </tr>
+    <tr>
+      <td>API Gateway</td>
+      <td class="azure">Azure API Management</td>
+      <td class="aws">Amazon API Gateway</td>
+      <td class="note">Used primarily with Lambda for serverless APIs; less common when using ECS+ALB</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Three Things That Work Differently Than Azure</h2>
+
+<h3>1. IAM is everywhere</h3>
+<p>In Azure, RBAC controls access to Azure resources, but your app code uses connection strings or managed identities. In AWS, <strong>IAM roles</strong> are used for <em>everything</em> — your ECS container gets an IAM role, your Lambda gets an IAM role, your S3 bucket has an IAM policy. You will write IAM policies constantly. Learning IAM well is non-negotiable.</p>
+
+<h3>2. Regions and Availability Zones are first-class</h3>
+<p>AWS makes you explicitly choose a <strong>Region</strong> (e.g., <code>us-east-1</code>) and deploy resources across at least two <strong>Availability Zones</strong> (AZs) for high availability. For a financial app, Multi-AZ RDS and ECS tasks spread across 2+ AZs is the baseline. This is more explicit than Azure, where HA is often a checkbox.</p>
+
+<h3>3. S3 is the universal substrate</h3>
+<p>In Azure, Blob Storage is one of many storage options. In AWS, S3 is everywhere — it stores your frontend, your Lambda deployment packages, your CloudWatch logs exports, your RDS backups, your audit trails. Think of it as the file system of AWS.</p>
+
+<div class="callout">
+  <strong>Primary source for this lesson</strong>
+  Read the <a href="https://aws.amazon.com/architecture/well-architected/" target="_blank">AWS Well-Architected Framework overview</a> — especially the Security and Reliability pillars. This is the authoritative document for production AWS design decisions.
+</div>
+
+<h2>The Financial App Stack — Service by Service</h2>
+
+<p>Here is the concrete service selection for a production financial web app on AWS:</p>
+
+<table>
+  <thead>
+    <tr><th>Layer</th><th>Service</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DNS</td>
+      <td class="aws">Route 53</td>
+      <td class="note">Health-check routing; failover to secondary region if needed</td>
+    </tr>
+    <tr>
+      <td>CDN / Edge</td>
+      <td class="aws">CloudFront</td>
+      <td class="note">TLS termination, cache, WAF integration for DDoS/OWASP protection</td>
+    </tr>
+    <tr>
+      <td>Frontend</td>
+      <td class="aws">S3 (static SPA)</td>
+      <td class="note">React/Vue/Next.js built output hosted as static files</td>
+    </tr>
+    <tr>
+      <td>Authentication</td>
+      <td class="aws">Cognito User Pools</td>
+      <td class="note">Managed login, MFA, JWT tokens — required for finance</td>
+    </tr>
+    <tr>
+      <td>Load balancer</td>
+      <td class="aws">ALB</td>
+      <td class="note">Routes HTTPS to ECS containers; handles SSL certs via ACM</td>
+    </tr>
+    <tr>
+      <td>Backend API</td>
+      <td class="aws">ECS Fargate</td>
+      <td class="note">Containerized API (Python/Node/Go) — no server management</td>
+    </tr>
+    <tr>
+      <td>Primary database</td>
+      <td class="aws">RDS PostgreSQL Multi-AZ</td>
+      <td class="note">ACID compliance, automatic failover, point-in-time recovery</td>
+    </tr>
+    <tr>
+      <td>Cache</td>
+      <td class="aws">ElastiCache Redis</td>
+      <td class="note">Session store, rate limiting, market data cache</td>
+    </tr>
+    <tr>
+      <td>File storage</td>
+      <td class="aws">S3</td>
+      <td class="note">Trade confirmations, statements, audit documents</td>
+    </tr>
+    <tr>
+      <td>Networking</td>
+      <td class="aws">VPC + private subnets</td>
+      <td class="note">RDS and ECS in private subnets; only ALB in public</td>
+    </tr>
+    <tr>
+      <td>Secrets</td>
+      <td class="aws">Secrets Manager</td>
+      <td class="note">DB passwords, API keys — never hardcoded or in env files</td>
+    </tr>
+    <tr>
+      <td>SSL/TLS certs</td>
+      <td class="aws">ACM (Certificate Manager)</td>
+      <td class="note">Free managed TLS certs for CloudFront and ALB</td>
+    </tr>
+    <tr>
+      <td>Monitoring</td>
+      <td class="aws">CloudWatch</td>
+      <td class="note">Logs, metrics, alarms; add X-Ray for request tracing</td>
+    </tr>
+    <tr>
+      <td>IAM</td>
+      <td class="aws">IAM Roles + Policies</td>
+      <td class="note">Every service-to-service call is authorized via IAM</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Pick the best answer. Feedback is immediate.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. Your RDS PostgreSQL database should be placed in which subnet type?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A public subnet, so the app can reach it from anywhere</label>
+      <label><input type="radio" name="q1" value="b"> A private subnet, accessible only from within the VPC</label>
+      <label><input type="radio" name="q1" value="c"> No subnet — RDS is a managed service outside the VPC</label>
+      <label><input type="radio" name="q1" value="d"> Either subnet — the security group controls access anyway</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. RDS must be in a private subnet. Security groups add a second layer, but the database should never be internet-reachable. Defense in depth.','Private subnet is correct — but security groups alone are not sufficient. Network segmentation (private subnets) is a separate, required control.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. In Azure you used Azure Static Web Apps to host your React frontend. What is the AWS equivalent pattern?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Deploy the React app to an EC2 instance running Nginx</label>
+      <label><input type="radio" name="q2" value="b"> Use Elastic Beanstalk with Node.js runtime</label>
+      <label><input type="radio" name="q2" value="c"> Host built files in S3, serve via CloudFront</label>
+      <label><input type="radio" name="q2" value="d"> Put the React app in an ECS Fargate container</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','c','Correct. S3 + CloudFront is the standard pattern: S3 stores the built static files, CloudFront serves them globally with caching and TLS. AWS Amplify does this same thing but with more automation.','Not quite. EC2/Beanstalk/ECS all add unnecessary compute cost and complexity for static files. Static assets should be served from S3 + CloudFront.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. AWS IAM is most similar to which Azure concept?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Azure Key Vault</label>
+      <label><input type="radio" name="q3" value="b"> Azure Active Directory + RBAC combined</label>
+      <label><input type="radio" name="q3" value="c"> Azure Monitor</label>
+      <label><input type="radio" name="q3" value="d"> Azure Service Bus</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. IAM handles both identity (who are you?) and access control (what can you do?) — the combination of Azure AD and Azure RBAC. In AWS, IAM roles are attached to every resource, not just users.','Not quite. IAM is the identity and access control system — it controls who (users, services, roles) can call which AWS APIs.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. You need to run a containerized Python FastAPI backend without managing servers. Which AWS service fits?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Amazon EC2 with Docker installed manually</label>
+      <label><input type="radio" name="q4" value="b"> AWS Lambda with a Python runtime</label>
+      <label><input type="radio" name="q4" value="c"> Amazon ECS with Fargate launch type</label>
+      <label><input type="radio" name="q4" value="d"> AWS Elastic Beanstalk Python platform</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','c','Correct. ECS Fargate runs your Docker container without you managing the underlying EC2 instances — equivalent to Azure Container Apps. Lambda works too but has cold starts and a 15-min timeout limit.','ECS Fargate is the best fit here: serverless containers, no EC2 management, full control over your Docker image. EC2 requires manual server management; Lambda has timeout constraints for long-running APIs.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway for finance</strong>
+  The pattern for a financial web app on AWS: <strong>CloudFront → S3</strong> (frontend), <strong>CloudFront → ALB → ECS Fargate</strong> (backend API), <strong>RDS Multi-AZ in private subnets</strong> (database), <strong>Cognito</strong> (auth), <strong>IAM roles</strong> for all service-to-service calls. This covers 80% of the architecture decisions you'll face.
+</div>
+
+<div class="lesson-nav">
+  This is <strong>Lesson 1 of the AWS Financial App series</strong>.<br>
+  Next: <em>VPC Deep Dive — subnets, AZs, security groups, and routing for a financial app</em><br><br>
+  <strong>Ask your teacher anything:</strong> If any service or concept above is unclear, ask a follow-up question in the terminal — your teacher can go deeper on any topic, draw alternate architectures, or explain trade-offs.
+</div>
+
+<footer>
+  Sources: <a href="https://aws.amazon.com/architecture/well-architected/" target="_blank">AWS Well-Architected Framework</a> ·
+  <a href="https://docs.aws.amazon.com/whitepapers/latest/aws-azure-comparison/aws-azure-comparison.html" target="_blank">AWS for Azure Professionals</a> ·
+  <a href="https://aws.amazon.com/financial-services/" target="_blank">AWS Financial Services</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

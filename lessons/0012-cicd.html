@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 12 — CI/CD with GitHub Actions</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --gh: #238636; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.79rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #4ec9b0; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .kw { color: #569cd6; } .str { color: #ce9178; } .key { color: #9cdcfe; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .dim { color: #888; }
+  .yaml-key { color: #9cdcfe; } .yaml-val { color: #ce9178; } .yaml-kw { color: #569cd6; }
+
+  /* Pipeline stages */
+  .pipeline { display: flex; gap: 0; margin: 1.5rem 0 2rem; font-family: sans-serif; font-size: 0.78rem; overflow-x: auto; }
+  .stage { flex: 1; min-width: 90px; border: 1px solid var(--border); padding: 0.65rem 0.7rem; background: white; position: relative; }
+  .stage:not(:first-child) { border-left: none; }
+  .stage:first-child { border-radius: 4px 0 0 4px; }
+  .stage:last-child  { border-radius: 0 4px 4px 0; }
+  .stage.backend  { border-top: 3px solid var(--aws-orange); }
+  .stage.frontend { border-top: 3px solid var(--green); }
+  .stage.shared   { border-top: 3px solid var(--muted); }
+  .st-name { font-weight: bold; color: var(--ink); margin-bottom: 0.25rem; font-size: 0.8rem; }
+  .st-steps { color: var(--muted); font-size: 0.7rem; line-height: 1.55; }
+  .st-time { font-size: 0.65rem; color: #aaa; margin-top: 0.3rem; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.gh      { background: #eafaef; border: 1px solid #a9d5b9; border-left: 4px solid var(--gh); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.5rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; } .aws { color: var(--aws-orange); font-weight: bold; } .note { color: var(--muted); font-size: 0.83rem; }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+<header>
+  <div class="lesson-number">Lesson 12 · Deployment</div>
+  <h1>CI/CD with GitHub Actions</h1>
+  <div class="subtitle">Automated test → build → deploy pipeline from git push to production</div>
+</header>
+
+<p>Right now, deploying your financial app means manually building Docker images, pushing to ECR, updating task definitions, syncing S3, and invalidating CloudFront. That is ten steps and one missed step away from a broken production deployment. <strong>GitHub Actions</strong> automates the entire pipeline: every push to <code>main</code> runs tests, builds, and deploys — reliably, repeatably, with a full audit log of every deployment.</p>
+
+<h2>The Complete Pipeline</h2>
+
+<div class="pipeline">
+  <div class="stage shared">
+    <div class="st-name">Test</div>
+    <div class="st-steps">pytest<br>eslint<br>type check</div>
+    <div class="st-time">~2 min</div>
+  </div>
+  <div class="stage backend">
+    <div class="st-name">Build API</div>
+    <div class="st-steps">docker build<br>push to ECR<br>tag :sha + :latest</div>
+    <div class="st-time">~3 min</div>
+  </div>
+  <div class="stage backend">
+    <div class="st-name">Deploy API</div>
+    <div class="st-steps">update task def<br>force new deploy<br>wait for stable</div>
+    <div class="st-time">~4 min</div>
+  </div>
+  <div class="stage frontend">
+    <div class="st-name">Build SPA</div>
+    <div class="st-steps">npm run build<br>content hash<br>dist/ ready</div>
+    <div class="st-time">~1 min</div>
+  </div>
+  <div class="stage frontend">
+    <div class="st-name">Deploy SPA</div>
+    <div class="st-steps">s3 sync<br>invalidate CF<br>/index.html only</div>
+    <div class="st-time">~1 min</div>
+  </div>
+</div>
+
+<p>Orange stages are the backend path; green are the frontend. Both run in parallel after tests pass, cutting total pipeline time from ~11 min sequential to ~7 min parallel.</p>
+
+<h2>OIDC Authentication — No Stored AWS Keys</h2>
+
+<p>The most important security decision in your CI/CD pipeline: <strong>never store AWS access keys in GitHub Secrets</strong>. Keys are long-lived credentials that can be leaked in logs, exported by a compromised action, or forgotten and never rotated.</p>
+
+<p>Instead, use <strong>OIDC (OpenID Connect)</strong>: GitHub Actions proves its identity to AWS using a short-lived token. AWS trusts GitHub's OIDC provider and issues temporary credentials for the duration of the job only.</p>
+
+<pre><span class="file-label">Terraform — OIDC trust relationship</span>
+<span class="key">resource</span> <span class="str">"aws_iam_openid_connect_provider"</span> <span class="str">"github"</span> {
+  url             = <span class="str">"https://token.actions.githubusercontent.com"</span>
+  client_id_list  = [<span class="str">"sts.amazonaws.com"</span>]
+  thumbprint_list = [<span class="str">"6938fd4d98bab03faadb97b34396831e3780aea1"</span>]
+}
+
+<span class="key">resource</span> <span class="str">"aws_iam_role"</span> <span class="str">"github_actions"</span> {
+  name = <span class="str">"finapp-github-actions"</span>
+  assume_role_policy = jsonencode({
+    Version = <span class="str">"2012-10-17"</span>
+    Statement = [{
+      Effect    = <span class="str">"Allow"</span>
+      Principal = { Federated = <span class="key">aws_iam_openid_connect_provider.github.arn</span> }
+      Action    = <span class="str">"sts:AssumeRoleWithWebIdentity"</span>
+      Condition = {
+        StringLike = {
+          <span class="cmt"># Only YOUR repo on YOUR branch can assume this role</span>
+          <span class="str">"token.actions.githubusercontent.com:sub"</span>:
+            <span class="str">"repo:your-org/finapp:ref:refs/heads/main"</span>
+        }
+      }
+    }]
+  })
+}
+
+<span class="cmt"># Attach least-privilege policy: ECR push + ECS deploy + S3 sync + CF invalidate</span></pre>
+
+<div class="callout gh">
+  <strong>The Condition is critical — lock it to your repo and branch</strong>
+  Without the <code>StringLike</code> condition, any GitHub Actions workflow on any public repo could assume your AWS role. Lock it to <code>repo:your-org/finapp:ref:refs/heads/main</code> — only your repo's main branch can authenticate. For PRs, add a separate condition for <code>pull_request</code> events if you need plan previews.
+</div>
+
+<h2>The Complete Workflow File</h2>
+
+<pre><span class="file-label">.github/workflows/deploy.yml</span>
+<span class="yaml-key">name</span>: <span class="yaml-val">Deploy to Production</span>
+
+<span class="yaml-key">on</span>:
+  <span class="yaml-key">push</span>:
+    <span class="yaml-key">branches</span>: [<span class="yaml-val">main</span>]
+
+<span class="yaml-key">env</span>:
+  <span class="yaml-key">AWS_REGION</span>:       <span class="yaml-val">us-east-1</span>
+  <span class="yaml-key">ECR_REPOSITORY</span>:   <span class="yaml-val">finapp-api</span>
+  <span class="yaml-key">ECS_CLUSTER</span>:      <span class="yaml-val">finapp-prod</span>
+  <span class="yaml-key">ECS_SERVICE</span>:      <span class="yaml-val">finapp-api</span>
+  <span class="yaml-key">CF_DISTRIBUTION</span>:  <span class="yaml-val">EDFDVBD6EXAMPLE</span>
+  <span class="yaml-key">S3_BUCKET</span>:        <span class="yaml-val">finapp-frontend-prod</span>
+
+<span class="yaml-key">jobs</span>:
+
+  <span class="cmt">## ── 1. TEST ──────────────────────────────────────────</span>
+  <span class="yaml-key">test</span>:
+    <span class="yaml-key">runs-on</span>: <span class="yaml-val">ubuntu-latest</span>
+    <span class="yaml-key">steps</span>:
+      - <span class="yaml-key">uses</span>: <span class="yaml-val">actions/checkout@v4</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Run backend tests</span>
+        <span class="yaml-key">run</span>: |
+          pip install -r requirements.txt
+          pytest tests/ -v --tb=short
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Run frontend checks</span>
+        <span class="yaml-key">run</span>: |
+          cd frontend && npm ci
+          npm run type-check
+          npm run lint
+
+  <span class="cmt">## ── 2. DEPLOY BACKEND ───────────────────────────────</span>
+  <span class="yaml-key">deploy-backend</span>:
+    <span class="yaml-key">needs</span>: <span class="yaml-val">test</span>        <span class="cmt"># only runs if tests pass</span>
+    <span class="yaml-key">runs-on</span>: <span class="yaml-val">ubuntu-latest</span>
+    <span class="yaml-key">permissions</span>:
+      <span class="yaml-key">id-token</span>: <span class="yaml-val">write</span>   <span class="cmt"># required for OIDC</span>
+      <span class="yaml-key">contents</span>: <span class="yaml-val">read</span>
+
+    <span class="yaml-key">steps</span>:
+      - <span class="yaml-key">uses</span>: <span class="yaml-val">actions/checkout@v4</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Configure AWS credentials (OIDC — no stored keys)</span>
+        <span class="yaml-key">uses</span>: <span class="yaml-val">aws-actions/configure-aws-credentials@v4</span>
+        <span class="yaml-key">with</span>:
+          <span class="yaml-key">role-to-assume</span>: <span class="yaml-val">arn:aws:iam::123456789012:role/finapp-github-actions</span>
+          <span class="yaml-key">aws-region</span>: <span class="yaml-val">${{ env.AWS_REGION }}</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Login to ECR</span>
+        <span class="yaml-key">id</span>: <span class="yaml-val">login-ecr</span>
+        <span class="yaml-key">uses</span>: <span class="yaml-val">aws-actions/amazon-ecr-login@v2</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Build, tag, push Docker image</span>
+        <span class="yaml-key">env</span>:
+          <span class="yaml-key">REGISTRY</span>: <span class="yaml-val">${{ steps.login-ecr.outputs.registry }}</span>
+          <span class="yaml-key">IMAGE_TAG</span>: <span class="yaml-val">${{ github.sha }}</span>
+        <span class="yaml-key">run</span>: |
+          docker build -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag  $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                      $REGISTRY/$ECR_REPOSITORY:latest
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Update ECS task definition with new image</span>
+        <span class="yaml-key">id</span>: <span class="yaml-val">task-def</span>
+        <span class="yaml-key">uses</span>: <span class="yaml-val">aws-actions/amazon-ecs-render-task-definition@v1</span>
+        <span class="yaml-key">with</span>:
+          <span class="yaml-key">task-definition</span>: <span class="yaml-val">task-definition.json</span>   <span class="cmt"># checked into repo</span>
+          <span class="yaml-key">container-name</span>:  <span class="yaml-val">api</span>
+          <span class="yaml-key">image</span>: <span class="yaml-val">${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Deploy to ECS (rolling update, waits for stable)</span>
+        <span class="yaml-key">uses</span>: <span class="yaml-val">aws-actions/amazon-ecs-deploy-task-definition@v1</span>
+        <span class="yaml-key">with</span>:
+          <span class="yaml-key">task-definition</span>: <span class="yaml-val">${{ steps.task-def.outputs.task-definition }}</span>
+          <span class="yaml-key">service</span>:         <span class="yaml-val">${{ env.ECS_SERVICE }}</span>
+          <span class="yaml-key">cluster</span>:         <span class="yaml-val">${{ env.ECS_CLUSTER }}</span>
+          <span class="yaml-key">wait-for-service-stability</span>: <span class="yaml-val">true</span>   <span class="cmt"># fails if ECS can't stabilize</span>
+
+  <span class="cmt">## ── 3. DEPLOY FRONTEND ──────────────────────────────</span>
+  <span class="yaml-key">deploy-frontend</span>:
+    <span class="yaml-key">needs</span>: <span class="yaml-val">test</span>        <span class="cmt"># parallel with deploy-backend</span>
+    <span class="yaml-key">runs-on</span>: <span class="yaml-val">ubuntu-latest</span>
+    <span class="yaml-key">permissions</span>:
+      <span class="yaml-key">id-token</span>: <span class="yaml-val">write</span>
+      <span class="yaml-key">contents</span>: <span class="yaml-val">read</span>
+
+    <span class="yaml-key">steps</span>:
+      - <span class="yaml-key">uses</span>: <span class="yaml-val">actions/checkout@v4</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Configure AWS credentials (OIDC)</span>
+        <span class="yaml-key">uses</span>: <span class="yaml-val">aws-actions/configure-aws-credentials@v4</span>
+        <span class="yaml-key">with</span>:
+          <span class="yaml-key">role-to-assume</span>: <span class="yaml-val">arn:aws:iam::123456789012:role/finapp-github-actions</span>
+          <span class="yaml-key">aws-region</span>: <span class="yaml-val">${{ env.AWS_REGION }}</span>
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Build React SPA</span>
+        <span class="yaml-key">run</span>: |
+          cd frontend && npm ci && npm run build
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Sync to S3 (changed files only)</span>
+        <span class="yaml-key">run</span>: |
+          aws s3 sync frontend/dist/ s3://$S3_BUCKET/ \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "index.html"
+
+          <span class="cmt"># index.html gets short cache — must be fresh</span>
+          aws s3 cp frontend/dist/index.html s3://$S3_BUCKET/index.html \
+            --cache-control "max-age=300, must-revalidate"
+
+      - <span class="yaml-key">name</span>: <span class="yaml-val">Invalidate CloudFront cache (index.html only)</span>
+        <span class="yaml-key">run</span>: |
+          aws cloudfront create-invalidation \
+            --distribution-id $CF_DISTRIBUTION \
+            --paths "/index.html"</pre>
+
+<h2>Production Protection — Manual Approval Gate</h2>
+
+<p>For a financial app you may want a human to approve the production deployment after staging passes. GitHub <strong>Environments</strong> provide this.</p>
+
+<pre><span class="file-label">GitHub UI: Settings → Environments → prod</span>
+Required reviewers: [your-username, senior-engineer]
+Wait timer: 0 min (or set 5 min to allow cancellation)
+
+<span class="cmt"># In the workflow, reference the environment:</span>
+<span class="yaml-key">deploy-backend</span>:
+  <span class="yaml-key">environment</span>: <span class="yaml-val">prod</span>    <span class="cmt"># ← this triggers the approval gate</span>
+  <span class="yaml-key">needs</span>: <span class="yaml-val">test</span></pre>
+
+<div class="callout finance">
+  <strong>Finance requirement: deployment audit trail</strong>
+  Every GitHub Actions run is logged with: who triggered it, which commit SHA, which branch, what steps ran, and whether it succeeded. This is your deployment audit trail — a requirement for SOC 2 and most financial compliance frameworks. GitHub's run history satisfies this without any additional tooling.
+</div>
+
+<h2>IAM Policy for the GitHub Actions Role</h2>
+
+<p>Least privilege — the GitHub Actions role only gets the permissions it needs to deploy, nothing else:</p>
+
+<pre><span class="cmt">GitHub Actions Role permissions (minimum):</span>
+
+ECR:
+  ecr:GetAuthorizationToken
+  ecr:BatchCheckLayerAvailability
+  ecr:GetDownloadUrlForLayer
+  ecr:PutImage
+  ecr:InitiateLayerUpload
+  ecr:UploadLayerPart
+  ecr:CompleteLayerUpload
+  Resource: arn:aws:ecr:us-east-1:123456789012:repository/finapp-api
+
+ECS:
+  ecs:DescribeTaskDefinition
+  ecs:RegisterTaskDefinition
+  ecs:UpdateService
+  ecs:DescribeServices
+  iam:PassRole          <span class="dim">(to pass task/execution roles to new task def revision)</span>
+  Resource: specific cluster and service ARNs
+
+S3:
+  s3:PutObject
+  s3:DeleteObject
+  s3:ListBucket
+  Resource: arn:aws:s3:::finapp-frontend-prod/*
+
+CloudFront:
+  cloudfront:CreateInvalidation
+  Resource: arn:aws:cloudfront::123456789012:distribution/EDFDVBD6EXAMPLE</pre>
+
+<div class="callout warn">
+  <strong>iam:PassRole requires careful scoping</strong>
+  ECS needs <code>iam:PassRole</code> to attach task and execution roles to the new task definition. Scope this to the specific role ARNs only — <code>iam:PassRole</code> on <code>*</code> is equivalent to privilege escalation because it lets you pass any role in the account.
+</div>
+
+<h2>Azure → AWS CI/CD Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure DevOps / GitHub</th><th>GitHub Actions + AWS</th><th>Difference</th></tr></thead>
+  <tbody>
+    <tr><td>Pipeline definition</td><td class="azure">azure-pipelines.yml / .github/workflows</td><td class="aws">.github/workflows/*.yml</td><td class="note">Same YAML structure if already using GitHub Actions for Azure. Swap azure/* actions for aws-actions/*.</td></tr>
+    <tr><td>Authentication</td><td class="azure">Azure service connection (client secret or federated)</td><td class="aws">OIDC with aws-actions/configure-aws-credentials</td><td class="note">Both support OIDC federated identity — no stored secrets. AWS calls it "role with web identity"; Azure calls it "federated credential".</td></tr>
+    <tr><td>Container registry</td><td class="azure">Azure Container Registry</td><td class="aws">ECR via amazon-ecr-login action</td><td class="note">amazon-ecr-login handles docker login using the OIDC-acquired credentials automatically.</td></tr>
+    <tr><td>Container deploy</td><td class="azure">Azure Container Apps update / AKS apply</td><td class="aws">amazon-ecs-deploy-task-definition action</td><td class="note">The ECS action registers a new task definition revision and updates the service — equivalent to a rolling deploy.</td></tr>
+    <tr><td>Static deploy</td><td class="azure">az storage blob upload-batch</td><td class="aws">aws s3 sync</td><td class="note">Both sync only changed files. AWS requires separate CloudFront invalidation; Azure Static Web Apps handles CDN purge automatically.</td></tr>
+    <tr><td>Approval gates</td><td class="azure">Azure DevOps release gates / GitHub Environments</td><td class="aws">GitHub Environments (required reviewers)</td><td class="note">Identical if already on GitHub. Azure DevOps has more complex gate policies (query Azure Monitor, call REST APIs).</td></tr>
+    <tr><td>Secrets</td><td class="azure">Azure Key Vault + GitHub Secrets</td><td class="aws">GitHub Secrets (non-AWS secrets only — use OIDC for AWS)</td><td class="note">Store non-AWS secrets (Slack webhook, PagerDuty key) in GitHub Secrets. Never store AWS credentials there — use OIDC.</td></tr>
+  </tbody>
+</table>
+
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+
+  <div class="question" id="q1">
+    <p>1. Why should you never store AWS Access Key ID and Secret Access Key in GitHub Secrets for CI/CD?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> GitHub Secrets are not encrypted and can be read by anyone with repo access</label>
+      <label><input type="radio" name="q1" value="b"> Access keys are long-lived credentials — if leaked (in logs, a compromised action, or a misconfigured export), they grant AWS access until manually rotated</label>
+      <label><input type="radio" name="q1" value="c"> AWS does not support access keys for CI/CD — it is against their terms of service</label>
+      <label><input type="radio" name="q1" value="d"> GitHub Actions cannot pass environment variables to AWS CLI commands</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Long-lived access keys are the risk. They can appear in build logs, be exported by a malicious dependency, or sit forgotten with no expiry. OIDC tokens are valid for only the duration of the job (~15 min) and cannot be reused outside of GitHub Actions.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. The <code>deploy-backend</code> and <code>deploy-frontend</code> jobs both have <code>needs: test</code>. What does this mean for execution order?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> deploy-backend runs first, then deploy-frontend, then test</label>
+      <label><input type="radio" name="q2" value="b"> test runs first; if it passes, deploy-backend and deploy-frontend run in parallel</label>
+      <label><input type="radio" name="q2" value="c"> All three jobs run in parallel simultaneously</label>
+      <label><input type="radio" name="q2" value="d"> test and deploy-backend run in parallel; deploy-frontend waits for both</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. needs: test means "wait for the test job to complete successfully." Both deploy jobs depend on test but not on each other, so they run in parallel after test passes — cutting total pipeline time significantly.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. After deploying new frontend assets to S3, you run <code>aws cloudfront create-invalidation --paths "/index.html"</code>. Why only <code>/index.html</code> and not <code>"/*"</code>?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> CloudFront only allows invalidating one file at a time</label>
+      <label><input type="radio" name="q3" value="b"> JS and CSS asset filenames include a content hash that changes with every build — old cache entries are never requested again, making their invalidation unnecessary</label>
+      <label><input type="radio" name="q3" value="c"> Invalidating /* would also clear the API cache, breaking the backend</label>
+      <label><input type="radio" name="q3" value="d"> index.html is the only file that changes between deployments</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. Content-hashed filenames (main.a3f8b2c.js) are unique per build. New builds produce new filenames — the old cached names are never requested again. Only index.html keeps the same name, so only it needs explicit invalidation. Invalidating /* is slower, costs more, and is unnecessary.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. The ECS deploy step has <code>wait-for-service-stability: true</code>. Your new container has a bug and crashes on startup. What happens to the pipeline?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> The pipeline succeeds — GitHub Actions cannot detect ECS health check failures</label>
+      <label><input type="radio" name="q4" value="b"> The pipeline job fails — ECS service never stabilizes, causing the deploy step to time out and error</label>
+      <label><input type="radio" name="q4" value="c"> ECS automatically rolls back and the pipeline reports success</label>
+      <label><input type="radio" name="q4" value="d"> The pipeline pauses and waits for a manual rollback command</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. wait-for-service-stability polls ECS until the service reaches a stable state (all desired tasks running and healthy). If the new tasks crash repeatedly, ECS never stabilizes, the step times out, and the GitHub Actions job fails — giving you a clear red signal in your pipeline history.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  CI/CD pipeline: <strong>test → [deploy-backend ∥ deploy-frontend]</strong> in parallel. Use <strong>OIDC</strong> (not stored access keys) — the GitHub Actions role assumes a specific IAM role via <code>aws-actions/configure-aws-credentials</code>. Lock the OIDC trust condition to your exact repo and branch. Tag Docker images with <strong>git SHA</strong> (not <code>latest</code>) for traceability. Set <code>wait-for-service-stability: true</code> so a crashing container fails the pipeline visibly. Sync S3 with per-file cache headers, invalidate only <code>/index.html</code>. Use <strong>GitHub Environments</strong> for a prod approval gate.
+</div>
+
+<div class="lesson-nav">
+  <a href="0010-sqs-lambda.html">← L10: SQS + Lambda</a> ·
+  <a href="0011-cloudwatch.html">← L11: CloudWatch</a><br><br>
+  <strong>You have now completed the full 12-lesson series.</strong><br>
+  Topics you can explore next: Terraform CI/CD (plan on PR, apply on merge) · Aurora Serverless v2 · ElastiCache session management · WAF rule tuning · AWS Config for compliance auditing<br><br>
+  <strong>Ask your teacher anything.</strong>
+</div>
+<footer>
+  Sources: <a href="https://docs.github.com/en/actions" target="_blank">GitHub Actions Docs</a> · <a href="https://github.com/aws-actions/configure-aws-credentials" target="_blank">aws-actions/configure-aws-credentials</a> · <a href="https://github.com/aws-actions/amazon-ecs-deploy-task-definition" target="_blank">amazon-ecs-deploy-task-definition</a> · <a href="https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment" target="_blank">GitHub Environments</a>
+</footer>
+</article>
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const sel = document.querySelector('input[name="'+qid+'"]:checked');
+  const fb  = document.getElementById(qid+'-feedback');
+  if (!sel) { fb.textContent='Please select an answer.'; fb.className='feedback wrong'; return; }
+  fb.textContent = (sel.value===correctVal ? '✓ '+correctMsg : '✗ '+wrongMsg);
+  fb.className   = 'feedback '+(sel.value===correctVal ? 'correct' : 'wrong');
+}
+</script>
+</body>
+</html>

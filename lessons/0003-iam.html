@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 3 — IAM: Identity and Access in AWS</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+
+  h2 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin: 2.5rem 0 0.8rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .kw  { color: #569cd6; }
+  .str { color: #ce9178; }
+  .key { color: #9cdcfe; }
+  .val { color: #4ec9b0; }
+  .cmt { color: #6a9955; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+
+  thead tr { background: var(--ink); color: white; }
+
+  th {
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  td {
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: var(--light); }
+
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid #c0392b; }
+
+  /* IAM entity cards */
+  .entity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin: 1.2rem 0 1.8rem;
+  }
+
+  .entity-card {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.9rem 1rem;
+    background: white;
+  }
+
+  .entity-card .name {
+    font-family: sans-serif;
+    font-weight: bold;
+    font-size: 0.88rem;
+    color: var(--aws-orange);
+    margin-bottom: 0.3rem;
+  }
+
+  .entity-card .desc {
+    font-size: 0.85rem;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  .entity-card .azure-eq {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--azure-blue);
+    font-family: sans-serif;
+  }
+
+  /* Role flow diagram */
+  .role-flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+
+  .role-flow .title {
+    font-family: sans-serif;
+    font-size: 0.73rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .arrow { color: var(--aws-orange); }
+  .dim   { color: #999; }
+
+  /* Policy anatomy */
+  .policy-anatomy {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.3rem 1rem;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.88rem;
+    align-items: start;
+  }
+
+  .pa-key {
+    font-family: monospace;
+    color: #9cdcfe;
+    background: #1e1e1e;
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .pa-val { color: var(--ink); line-height: 1.5; padding-top: 0.1rem; }
+
+  /* Quiz */
+  .quiz {
+    background: var(--light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 2.5rem 0;
+  }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    margin: 0.25rem 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    transition: background 0.15s;
+  }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 3px;
+    font-size: 0.88rem;
+    display: none;
+  }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-family: sans-serif;
+  }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-family: sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 03 · Security</div>
+  <h1>IAM: Identity and Access in AWS</h1>
+  <div class="subtitle">Roles, policies, and why every AWS API call goes through IAM</div>
+</header>
+
+<p>IAM (Identity and Access Management) is the most AWS-specific concept you will encounter. In Azure, most service-to-service permissions are handled by connection strings, Managed Identities, and RBAC roles. In AWS, <strong>every single API call — from any service, user, or resource — is authorized by IAM</strong>. Your ECS container reading from S3, your RDS backup writing to storage, your CloudWatch agent publishing metrics: all IAM.</p>
+
+<p>Getting IAM right is the difference between a secure production system and one with accidental data exposure. This lesson covers the four IAM entities and the one pattern that matters most for your financial app: <strong>roles on services</strong>.</p>
+
+<h2>The Four IAM Entities</h2>
+
+<div class="entity-grid">
+  <div class="entity-card">
+    <div class="name">IAM User</div>
+    <div class="desc">A permanent identity for a human. Has a username, password for the AWS console, and optional access keys for CLI use.</div>
+    <div class="azure-eq">≈ Azure AD User</div>
+  </div>
+  <div class="entity-card">
+    <div class="name">IAM Group</div>
+    <div class="desc">A collection of IAM Users. Attach policies to the group; all members inherit them. Simplifies managing permissions for a team.</div>
+    <div class="azure-eq">≈ Azure AD Group</div>
+  </div>
+  <div class="entity-card">
+    <div class="name">IAM Role</div>
+    <div class="desc">A temporary identity assumed by a service, application, or another AWS account. No username or password — credentials are short-lived and rotated automatically.</div>
+    <div class="azure-eq">≈ Azure Managed Identity</div>
+  </div>
+  <div class="entity-card">
+    <div class="name">IAM Policy</div>
+    <div class="desc">A JSON document that defines what actions are allowed or denied on which resources. Attached to Users, Groups, or Roles.</div>
+    <div class="azure-eq">≈ Azure RBAC Role Definition</div>
+  </div>
+</div>
+
+<p>For your financial web app, <strong>IAM Roles are what matter most</strong>. Your ECS containers, Lambda functions, and other services all operate by assuming roles — never by using hardcoded credentials.</p>
+
+<div class="callout danger">
+  <strong>The cardinal rule: never use access keys in application code</strong>
+  Hardcoding an AWS Access Key ID + Secret in your ECS container, environment variables, or source code is the single most common AWS security mistake. Keys get leaked in git history, Docker image layers, or log files. Use IAM Roles instead — the AWS SDK picks them up automatically with no code changes.
+</div>
+
+<h2>How IAM Roles Work</h2>
+
+<p>A role has two parts:</p>
+
+<ul style="margin: 0.5rem 0 1rem 1.5rem; line-height: 1.9;">
+  <li><strong>Trust Policy</strong> — who is allowed to <em>assume</em> this role (e.g., "ECS tasks in this account")</li>
+  <li><strong>Permission Policy</strong> — what the role can <em>do</em> once assumed (e.g., "read from this S3 bucket")</li>
+</ul>
+
+<div class="role-flow">
+  <div class="title">How an ECS container gets AWS credentials</div>
+  ECS Task starts
+  <span class="arrow">→</span> ECS service sees the Task Role attached to the task definition
+  <span class="arrow">→</span> Calls AWS STS (Security Token Service) to assume the role
+  <span class="arrow">→</span> Gets back temporary credentials (expire in 1 hr, auto-rotated)
+  <span class="arrow">→</span> AWS SDK in your container automatically uses these credentials
+  <span class="arrow">→</span> Your code calls <span class="dim">s3.get_object()</span> — SDK signs the request with the temp credentials
+  <span class="arrow">→</span> S3 calls IAM: "is this role allowed to GetObject on this bucket?"
+  <span class="arrow">→</span> IAM checks the Permission Policy → allows or denies
+</div>
+
+<p>Your application code never sees credentials. No <code>AWS_ACCESS_KEY_ID</code> in environment variables, no keys in config files. The SDK handles everything.</p>
+
+<div class="callout info">
+  <strong>Azure analogy: Managed Identity</strong>
+  This is exactly how Azure Managed Identity works — your App Service or Container Apps instance gets an identity, and the Azure SDK picks up a token automatically. IAM Roles are the AWS equivalent. The key difference: in AWS you write an explicit JSON policy defining <em>exactly</em> which API actions are allowed. Azure RBAC uses predefined role names like "Storage Blob Data Reader". AWS requires you to be more explicit.
+</div>
+
+<h2>Anatomy of an IAM Policy</h2>
+
+<p>Every IAM Policy is a JSON document. Here is the policy you would attach to your ECS Task Role for reading trade records from S3:</p>
+
+<pre><span class="dim">{</span>
+  <span class="key">"Version"</span>: <span class="str">"2012-10-17"</span>,       <span class="cmt">// always this value</span>
+  <span class="key">"Statement"</span>: [
+    <span class="dim">{</span>
+      <span class="key">"Sid"</span>:    <span class="str">"ReadTradeRecords"</span>,  <span class="cmt">// optional label</span>
+      <span class="key">"Effect"</span>: <span class="str">"Allow"</span>,
+      <span class="key">"Action"</span>: [
+        <span class="str">"s3:GetObject"</span>,
+        <span class="str">"s3:ListBucket"</span>
+      ],
+      <span class="key">"Resource"</span>: [
+        <span class="str">"arn:aws:s3:::finapp-trade-records"</span>,
+        <span class="str">"arn:aws:s3:::finapp-trade-records/*"</span>
+      ]
+    <span class="dim">}</span>
+  ]
+<span class="dim">}</span></pre>
+
+<p>Four fields in every statement:</p>
+
+<div class="policy-anatomy">
+  <span class="pa-key">"Effect"</span>
+  <span class="pa-val"><code>"Allow"</code> or <code>"Deny"</code>. Default is deny — nothing is permitted unless explicitly allowed. An explicit Deny always overrides an Allow.</span>
+
+  <span class="pa-key">"Action"</span>
+  <span class="pa-val">The AWS API call(s) to allow. Format: <code>"service:Operation"</code>. Use <code>"s3:*"</code> to allow all S3 actions (avoid this in production — too broad).</span>
+
+  <span class="pa-key">"Resource"</span>
+  <span class="pa-val">The ARN (Amazon Resource Name) of the specific resource. <code>*</code> means all resources of that type — again, avoid in production.</span>
+
+  <span class="pa-key">"Sid"</span>
+  <span class="pa-val">Optional statement identifier. Use it to document intent — future you will thank present you.</span>
+</div>
+
+<h2>ARNs — How AWS Names Everything</h2>
+
+<p>An ARN is the unique identifier for any AWS resource. Format:</p>
+
+<pre>arn:<span class="kw">aws</span>:<span class="val">s3</span>:::<span class="str">finapp-trade-records</span>
+arn:<span class="kw">aws</span>:<span class="val">rds</span>:<span class="str">us-east-1</span>:<span class="key">123456789012</span>:<span class="str">db:finapp-postgres</span>
+arn:<span class="kw">aws</span>:<span class="val">ecs</span>:<span class="str">us-east-1</span>:<span class="key">123456789012</span>:<span class="str">task-definition/finapp-api:3</span>
+arn:<span class="kw">aws</span>:<span class="val">iam</span>::<span class="key">123456789012</span>:<span class="str">role/finapp-ecs-task-role</span></pre>
+
+<p>You will see ARNs everywhere. The account ID (<code>123456789012</code>) identifies your AWS account. When writing policy <code>"Resource"</code> fields, you are writing ARNs. Note that S3 ARNs have no region or account ID — because S3 bucket names are globally unique.</p>
+
+<h2>The Two ECS Roles You Always Need</h2>
+
+<p>ECS Fargate uses two distinct roles. Confusing them is one of the most common ECS mistakes:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Who uses it</th>
+      <th>What it does</th>
+      <th>Azure equivalent</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Task Execution Role</strong></td>
+      <td>The ECS <em>agent</em> (AWS infrastructure)</td>
+      <td>Pulls your Docker image from ECR, writes logs to CloudWatch, fetches secrets from Secrets Manager at startup</td>
+      <td class="note">Like the Azure Container Apps system identity for pulling images</td>
+    </tr>
+    <tr>
+      <td><strong>Task Role</strong></td>
+      <td>Your <em>application code</em> inside the container</td>
+      <td>Calls S3, RDS (via IAM auth), Secrets Manager, SES, etc. — whatever your app needs at runtime</td>
+      <td class="note">Like an Azure Managed Identity assigned to your app</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Think of it this way: the <strong>Execution Role</strong> gets your container running. The <strong>Task Role</strong> is what your container uses once it is running.</p>
+
+<div class="role-flow">
+  <div class="title">IAM Roles for the Financial App — Full Picture</div>
+
+ECS Task Execution Role (used by ECS agent):
+  <span class="arrow">→</span> ecr:GetDownloadUrlForLayer     <span class="dim"># pull Docker image</span>
+  <span class="arrow">→</span> logs:CreateLogStream           <span class="dim"># write to CloudWatch</span>
+  <span class="arrow">→</span> secretsmanager:GetSecretValue  <span class="dim"># inject DB password at startup</span>
+
+ECS Task Role (used by your Python/Node API code):
+  <span class="arrow">→</span> s3:GetObject, s3:PutObject     <span class="dim"># trade records, statements</span>
+  <span class="arrow">→</span> secretsmanager:GetSecretValue  <span class="dim"># fetch Alpaca API key at runtime</span>
+  <span class="arrow">→</span> ses:SendEmail                   <span class="dim"># trade confirmation emails</span>
+  <span class="arrow">→</span> cloudwatch:PutMetricData        <span class="dim"># custom app metrics</span>
+
+CloudFront Origin Access Control (used by CloudFront):
+  <span class="arrow">→</span> s3:GetObject                    <span class="dim"># serve frontend SPA from S3</span>
+
+RDS Monitoring Role (used by RDS):
+  <span class="arrow">→</span> logs:CreateLogGroup             <span class="dim"># enhanced monitoring metrics</span>
+</div>
+
+<h2>Principle of Least Privilege</h2>
+
+<p>Every policy should grant only the minimum permissions required. This is especially important for financial applications where data exposure or unauthorized trading operations carry real consequences.</p>
+
+<p>In practice:</p>
+
+<table>
+  <thead><tr><th>Instead of</th><th>Use</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>"Action": "s3:*"</code></td>
+      <td><code>"Action": ["s3:GetObject", "s3:PutObject"]</code></td>
+      <td>A compromised container can read but cannot delete trade history</td>
+    </tr>
+    <tr>
+      <td><code>"Resource": "*"</code></td>
+      <td><code>"Resource": "arn:aws:s3:::finapp-prod/*"</code></td>
+      <td>Scope to exactly the bucket your app needs, not all S3 in the account</td>
+    </tr>
+    <tr>
+      <td>One role for everything</td>
+      <td>Separate Task Role per service</td>
+      <td>Your market-data service doesn't need permission to write user statements</td>
+    </tr>
+    <tr>
+      <td>IAM User with access keys in code</td>
+      <td>IAM Role on the ECS task</td>
+      <td>Roles use short-lived credentials; a leaked key is a permanent breach</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout finance">
+  <strong>Finance requirement: Condition keys for extra control</strong>
+  IAM policies support <code>"Condition"</code> blocks. For a financial app, useful examples:<br><br>
+  • Require MFA for humans accessing production AWS console<br>
+  • Restrict S3 access to encrypted-in-transit only (<code>aws:SecureTransport: true</code>)<br>
+  • Lock Secrets Manager access to the ECS task's specific VPC (<code>aws:SourceVpc</code>)<br><br>
+  These are advanced — but they exist, and they matter for compliance.
+</div>
+
+<h2>Azure → AWS IAM Map</h2>
+
+<table>
+  <thead>
+    <tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Key difference</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Human identity</td>
+      <td class="azure">Azure AD User</td>
+      <td class="aws">IAM User</td>
+      <td class="note">AWS IAM Users are account-local; not a full directory service like Azure AD</td>
+    </tr>
+    <tr>
+      <td>Service identity</td>
+      <td class="azure">Managed Identity</td>
+      <td class="aws">IAM Role</td>
+      <td class="note">Nearly identical concept; both provide auto-rotated temp credentials</td>
+    </tr>
+    <tr>
+      <td>Permission definition</td>
+      <td class="azure">RBAC Role Definition</td>
+      <td class="aws">IAM Policy (JSON)</td>
+      <td class="note">AWS requires you to write JSON; Azure has named built-in roles you can assign directly</td>
+    </tr>
+    <tr>
+      <td>Permission assignment</td>
+      <td class="azure">Role Assignment</td>
+      <td class="aws">Attach policy to role</td>
+      <td class="note">Same idea; AWS calls it "attaching" a policy</td>
+    </tr>
+    <tr>
+      <td>Cross-service trust</td>
+      <td class="azure">Managed Identity binding</td>
+      <td class="aws">Trust Policy on Role</td>
+      <td class="note">AWS makes the trust relationship explicit in JSON; Azure manages this implicitly</td>
+    </tr>
+    <tr>
+      <td>Resource identifier</td>
+      <td class="azure">Resource ID</td>
+      <td class="aws">ARN</td>
+      <td class="note">Similar concept; ARNs include service, region, account, and resource name</td>
+    </tr>
+    <tr>
+      <td>Default access</td>
+      <td class="azure">Some implicit access within subscriptions</td>
+      <td class="aws">Deny everything by default</td>
+      <td class="note">AWS denies every API call unless there is an explicit Allow. Nothing is inherited.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on IAM.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. Your ECS Fargate container needs to read trade records from an S3 bucket. What is the correct way to grant it access?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as environment variables in the task definition</label>
+      <label><input type="radio" name="q1" value="b"> Attach an IAM Role (Task Role) to the ECS task definition with an S3 read policy</label>
+      <label><input type="radio" name="q1" value="c"> Make the S3 bucket public so the container can read without credentials</label>
+      <label><input type="radio" name="q1" value="d"> Store the access keys in Secrets Manager and load them at runtime</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Attach a Task Role to the ECS task definition. The AWS SDK automatically picks up the role\'s temporary credentials — no keys in environment variables, no keys in code.','Not quite. Hardcoded keys (even in Secrets Manager) can be extracted from memory or logs. The correct pattern is a Task Role: the AWS SDK picks up temporary credentials automatically, with no keys stored anywhere.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. Your ECS task fails to start — logs show it cannot pull the Docker image from ECR. Which IAM role is missing a permission?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> The Task Role — your application code needs ECR access</label>
+      <label><input type="radio" name="q2" value="b"> The Task Execution Role — the ECS agent pulls images before your code runs</label>
+      <label><input type="radio" name="q2" value="c"> The IAM User role of the developer who deployed the task</label>
+      <label><input type="radio" name="q2" value="d"> The RDS Monitoring Role — it controls what ECS can connect to</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. Pulling the Docker image from ECR happens before your application code runs — it\'s the ECS agent\'s job. The Task Execution Role needs ecr:GetDownloadUrlForLayer and related permissions.','Not quite. The Task Role is for your application code at runtime. Image pulling happens earlier, at startup, by the ECS infrastructure — that\'s the Task Execution Role\'s responsibility.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. An IAM policy has both an Allow statement for <code>s3:DeleteObject</code> and a Deny statement for <code>s3:DeleteObject</code> on the same resource. What happens when the role tries to delete an object?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> The Allow wins — it was defined first</label>
+      <label><input type="radio" name="q3" value="b"> The Deny wins — an explicit Deny always overrides an Allow</label>
+      <label><input type="radio" name="q3" value="c"> IAM throws a conflict error and blocks all S3 access</label>
+      <label><input type="radio" name="q3" value="d"> AWS prompts the user to resolve the conflict in the console</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. An explicit Deny always wins, regardless of any Allow on the same action. This is a core IAM evaluation rule — use explicit Deny statements to create hard blocks that cannot be overridden by other Allow policies.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. Applying least privilege, which policy is correct for an ECS service that only needs to write user trade confirmations to one specific S3 bucket?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Effect: Allow, Action: s3:*, Resource: *</label>
+      <label><input type="radio" name="q4" value="b"> Effect: Allow, Action: s3:PutObject, Resource: arn:aws:s3:::finapp-confirmations/*</label>
+      <label><input type="radio" name="q4" value="c"> Effect: Allow, Action: s3:PutObject, Resource: *</label>
+      <label><input type="radio" name="q4" value="d"> Effect: Allow, Action: s3:*, Resource: arn:aws:s3:::finapp-confirmations/*</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Narrow both the Action (only PutObject — not List, Get, Delete) and the Resource (only the specific bucket path). A compromised container cannot read other users\' data or delete existing records.','Not quite. Least privilege means narrowing both dimensions: only the action(s) you actually need, and only the specific resource(s) you actually use. Option B is the only one that restricts both.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  IAM Roles replace credentials for every service in AWS. Your ECS containers get a <strong>Task Role</strong> (what your code can do) and a <strong>Task Execution Role</strong> (how ECS starts the container). Policies are JSON with Effect / Action / Resource. Default is deny-all. Explicit Deny always wins. For finance: scope every policy to the exact actions and exact ARNs needed — nothing broader.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">← Lesson 1: AWS Architecture Map</a> ·
+  <a href="0002-vpc-networking.html">← Lesson 2: VPC Networking</a><br><br>
+  <strong>Next:</strong> <em>Lesson 4 — ECS Fargate: Running Your Containerized Backend on AWS</em><br><br>
+  <strong>Ask your teacher anything:</strong> Policy JSON structure, trust policies, IAM Conditions, or how to debug an "Access Denied" error — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html" target="_blank">AWS IAM User Guide</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html" target="_blank">ECS IAM Roles</a> ·
+  <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_understand-policy-summary-access-level-summaries.html" target="_blank">IAM Policy Evaluation</a> ·
+  <a href="https://aws.amazon.com/architecture/well-architected/" target="_blank">Well-Architected: Security Pillar</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

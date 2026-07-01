@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 10 — SQS + Lambda: Async Processing</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --purple: #7d3c98; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .kw { color: #569cd6; } .str { color: #ce9178; } .key { color: #9cdcfe; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .dim { color: #888; }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.82rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  /* Queue vs FIFO grid */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 1.2rem 0 1.8rem; }
+  .cg-box { border: 1px solid var(--border); border-radius: 5px; padding: 0.9rem 1rem; background: white; }
+  .cg-box.active { border-color: var(--aws-orange); background: #fffdf5; }
+  .cg-label { font-family: sans-serif; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+  .cg-name  { font-weight: bold; font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .cg-items { font-size: 0.82rem; line-height: 1.6; color: var(--ink); }
+
+  /* Use-case cards */
+  .use-cases { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 1rem 0 1.5rem; }
+  .uc { border: 1px solid var(--border); border-radius: 4px; padding: 0.7rem 0.85rem; background: white; font-family: sans-serif; font-size: 0.8rem; }
+  .uc-title { font-weight: bold; color: var(--ink); margin-bottom: 0.2rem; }
+  .uc-flow  { color: var(--muted); font-size: 0.74rem; line-height: 1.5; }
+  .uc-why   { color: var(--green); font-size: 0.74rem; margin-top: 0.25rem; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.92rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; } .aws { color: var(--aws-orange); font-weight: bold; } .note { color: var(--muted); font-size: 0.85rem; }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+<header>
+  <div class="lesson-number">Lesson 10 · Async Processing</div>
+  <h1>SQS + Lambda: Async Processing for a Financial App</h1>
+  <div class="subtitle">Decoupling work from the API response — trade alerts, emails, and batch jobs</div>
+</header>
+
+<p>Your ECS API handles HTTP requests synchronously — a user submits a trade, the API records it in RDS, and responds immediately. But some work should not happen in that response cycle: sending a confirmation email, running compliance checks, generating a PDF statement. These are slow, failure-prone, or bursty. <strong>SQS + Lambda</strong> handles them asynchronously — your API enqueues a message and moves on, Lambda processes it in the background.</p>
+
+<h2>The Two Services</h2>
+
+<p><strong>SQS (Simple Queue Service)</strong> is a managed message queue. Your ECS API puts a message in the queue. Lambda reads from the queue and processes it. If Lambda fails, the message stays in the queue and is retried. They are decoupled — SQS buffers the work between producer and consumer.</p>
+
+<p><strong>Lambda</strong> is a serverless function: you upload code, and AWS runs it in response to an event. With SQS as the trigger, Lambda polls the queue automatically and invokes your function with a batch of messages. You pay only for execution time — no idle cost.</p>
+
+<div class="callout info">
+  <strong>Azure analogy: Azure Service Bus + Azure Functions</strong>
+  SQS ≈ Azure Service Bus Queue (Standard tier). Lambda ≈ Azure Functions (Consumption plan). The pattern is identical: queue decouples producer from consumer, function is triggered by the queue. Key difference: Azure Service Bus has more messaging features (topics, sessions, dead-lettering via portal); SQS is simpler but sufficient for most patterns.
+</div>
+
+<h2>Four Async Jobs in the Financial App</h2>
+
+<div class="use-cases">
+  <div class="uc">
+    <div class="uc-title">Trade Confirmation Email</div>
+    <div class="uc-flow">ECS records trade → SQS message → Lambda → SES (email)</div>
+    <div class="uc-why">Don't block the API response waiting for SES. Retry on email failure without losing the trade.</div>
+  </div>
+  <div class="uc">
+    <div class="uc-title">Price Alert Notification</div>
+    <div class="uc-flow">EventBridge (1 min) → Lambda → check prices → SQS → alert Lambda → push notification</div>
+    <div class="uc-why">Price checks run on a schedule, not per-request. Lambda cost: fractions of a cent per run.</div>
+  </div>
+  <div class="uc">
+    <div class="uc-title">Statement PDF Generation</div>
+    <div class="uc-flow">ECS → SQS message → Lambda → generate PDF → S3 → notify user</div>
+    <div class="uc-why">PDFs can take seconds and use significant memory. Offloading avoids ECS timeout and resource contention.</div>
+  </div>
+  <div class="uc">
+    <div class="uc-title">Audit Log Archival</div>
+    <div class="uc-flow">ECS writes events → SQS FIFO → Lambda → append to audit DynamoDB table</div>
+    <div class="uc-why">FIFO queue preserves event order. Audit trail must be complete and ordered for compliance.</div>
+  </div>
+</div>
+
+<h2>Standard Queue vs FIFO Queue</h2>
+
+<div class="compare-grid">
+  <div class="cg-box active">
+    <div class="cg-label">Default choice</div>
+    <div class="cg-name">Standard Queue</div>
+    <div class="cg-items">
+      · At-least-once delivery (may duplicate)<br>
+      · Best-effort ordering (not guaranteed)<br>
+      · Nearly unlimited throughput<br>
+      · Use for: emails, notifications, reports<br>
+      · Your Lambda must be idempotent
+    </div>
+  </div>
+  <div class="cg-box">
+    <div class="cg-label">When order matters</div>
+    <div class="cg-name">FIFO Queue</div>
+    <div class="cg-items">
+      · Exactly-once delivery (deduplication)<br>
+      · Strict first-in-first-out ordering<br>
+      · Max 3,000 messages/sec<br>
+      · Use for: audit logs, trade event streams<br>
+      · Name must end in <code>.fifo</code>
+    </div>
+  </div>
+</div>
+
+<h2>The SQS → Lambda Flow</h2>
+
+<div class="flow">
+  <div class="ftitle">Trade confirmation — end to end</div>
+ECS API handles POST /api/trades
+  <span class="arrow">→</span> Records trade in RDS (synchronous — user waits for this)
+  <span class="arrow">→</span> Puts message on SQS queue:
+     { "trade_id": "uuid", "user_id": "uuid", "symbol": "AAPL", "quantity": 10 }
+  <span class="arrow">→</span> Returns HTTP 200 to user  <span class="dim"># API response time: ~50ms</span>
+
+Meanwhile, asynchronously:
+  SQS holds the message (up to 14 days if not processed)
+  <span class="arrow">→</span> Lambda polls the queue every 20 seconds (managed by AWS)
+  <span class="arrow">→</span> Lambda receives batch of 1–10 messages
+  <span class="arrow">→</span> For each message:
+       Fetch trade details from RDS
+       Fetch user email from RDS
+       Call SES to send confirmation email
+       <span class="arrow">→</span> Delete message from queue (success)
+       <span class="arrow">→</span> On failure: message becomes visible again after visibility timeout → retry
+  <span class="arrow">→</span> After 3 failed retries → message moves to Dead-Letter Queue (DLQ)
+</div>
+
+<h2>Three Critical SQS Settings</h2>
+
+<table>
+  <thead><tr><th>Setting</th><th>What it does</th><th>Value for financial app</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Visibility Timeout</strong></td>
+      <td>How long a message is hidden from other consumers while being processed. If Lambda crashes before finishing, the message reappears after this timeout.</td>
+      <td>Set to 6× your Lambda timeout. If Lambda runs up to 30s, set 3 minutes. Prevents duplicate processing during long runs.</td>
+    </tr>
+    <tr>
+      <td><strong>Message Retention</strong></td>
+      <td>How long SQS keeps unprocessed messages before deleting them.</td>
+      <td>14 days (maximum). For financial events, you want the longest window to investigate failures.</td>
+    </tr>
+    <tr>
+      <td><strong>Dead-Letter Queue (DLQ)</strong></td>
+      <td>A separate queue where messages go after N failed processing attempts. Essential for debugging — failed messages don't disappear.</td>
+      <td>Always configure. Set maxReceiveCount = 3. Alert on DLQ depth > 0 via CloudWatch alarm.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout finance">
+  <strong>Finance requirement: always have a DLQ and alarm on it</strong>
+  A failed trade confirmation email sitting silently in a DLQ is a compliance gap. Configure a CloudWatch alarm on <code>ApproximateNumberOfMessagesVisible</code> on the DLQ — any message landing there should page your on-call engineer immediately. Never let messages silently disappear.
+</div>
+
+<h2>Lambda Function — Anatomy</h2>
+
+<pre><span class="file-label">trade_confirmation_handler.py</span>
+<span class="kw">import</span> json, boto3
+
+ses = boto3.client(<span class="str">"ses"</span>)
+
+<span class="kw">def</span> <span class="key">handler</span>(event, context):
+    <span class="cmt"># Lambda receives a batch of SQS messages</span>
+    failures = []
+
+    <span class="kw">for</span> record <span class="kw">in</span> event[<span class="str">"Records"</span>]:
+        <span class="kw">try</span>:
+            body = json.loads(record[<span class="str">"body"</span>])
+            send_confirmation_email(body)
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="cmt"># Report this record as failed — SQS will retry it</span>
+            failures.append({<span class="str">"itemIdentifier"</span>: record[<span class="str">"messageId"</span>]})
+
+    <span class="cmt"># Return failed message IDs — only these go back to queue</span>
+    <span class="cmt"># Successful messages are auto-deleted. Partial batch failure!</span>
+    <span class="kw">return</span> {<span class="str">"batchItemFailures"</span>: failures}
+
+
+<span class="kw">def</span> <span class="key">send_confirmation_email</span>(body):
+    ses.send_email(
+        Source=<span class="str">"noreply@finapp.com"</span>,
+        Destination={<span class="str">"ToAddresses"</span>: [body[<span class="str">"user_email"</span>]]},
+        Message={
+            <span class="str">"Subject"</span>: {<span class="str">"Data"</span>: <span class="str">f"Trade confirmed: {body['symbol']}"</span>},
+            <span class="str">"Body"</span>:    {<span class="str">"Text"</span>: {<span class="str">"Data"</span>: <span class="str">f"You bought {body['quantity']} shares of {body['symbol']}."</span>}}
+        }
+    )</pre>
+
+<div class="callout warn">
+  <strong>Return batchItemFailures — not a single exception</strong>
+  If your Lambda raises an exception, the entire batch is retried — including messages that already succeeded. Use <code>batchItemFailures</code> to report only the specific records that failed. Successful records in the batch are deleted from the queue; failed ones are retried individually. This requires <code>ReportBatchItemFailures</code> enabled on the Event Source Mapping.
+</div>
+
+<h2>Lambda Configuration for Financial Processing</h2>
+
+<pre><span class="file-label">Terraform — Lambda + SQS trigger</span>
+<span class="key">resource</span> <span class="str">"aws_lambda_function"</span> <span class="str">"trade_confirmation"</span> {
+  function_name = <span class="str">"finapp-trade-confirmation"</span>
+  runtime       = <span class="str">"python3.12"</span>
+  handler       = <span class="str">"trade_confirmation_handler.handler"</span>
+  role          = <span class="key">aws_iam_role.lambda_exec.arn</span>
+
+  memory_size = <span class="num">256</span>    <span class="cmt"># MB — tune based on CloudWatch metrics</span>
+  timeout     = <span class="num">30</span>     <span class="cmt"># seconds — set DLQ visibility timeout to 6× this</span>
+
+  environment {
+    variables = {
+      <span class="str">"SES_REGION"</span> = <span class="str">"us-east-1"</span>
+    }
+  }
+}
+
+<span class="key">resource</span> <span class="str">"aws_lambda_event_source_mapping"</span> <span class="str">"sqs_trigger"</span> {
+  event_source_arn                   = <span class="key">aws_sqs_queue.trade_events.arn</span>
+  function_name                      = <span class="key">aws_lambda_function.trade_confirmation.arn</span>
+  batch_size                         = <span class="num">10</span>    <span class="cmt"># process up to 10 messages per invocation</span>
+  function_response_types            = [<span class="str">"ReportBatchItemFailures"</span>]
+  maximum_batching_window_in_seconds = <span class="num">5</span>
+}</pre>
+
+<h2>Lambda IAM Execution Role</h2>
+
+<p>Lambda needs its own IAM execution role — separate from ECS roles. Least privilege applies here too.</p>
+
+<pre><span class="cmt">Lambda Execution Role needs:</span>
+  sqs:ReceiveMessage       <span class="dim"># poll the queue</span>
+  sqs:DeleteMessage        <span class="dim"># remove processed messages</span>
+  sqs:GetQueueAttributes   <span class="dim"># read queue metadata</span>
+  ses:SendEmail            <span class="dim"># send confirmation emails</span>
+  logs:CreateLogGroup      <span class="dim"># write to CloudWatch Logs</span>
+  logs:PutLogEvents        <span class="dim"># (required for all Lambdas)</span>
+
+<span class="cmt">ECS Task Role additionally needs:</span>
+  sqs:SendMessage          <span class="dim"># put messages onto the queue</span>
+  <span class="dim">on Resource: specific queue ARN only</span></pre>
+
+<h2>Azure → AWS Async Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Difference</th></tr></thead>
+  <tbody>
+    <tr><td>Message queue</td><td class="azure">Service Bus Queue</td><td class="aws">SQS Standard / FIFO</td><td class="note">Service Bus has more enterprise features (sessions, topics). SQS is simpler and cheaper for most patterns.</td></tr>
+    <tr><td>Serverless function</td><td class="azure">Azure Functions (Consumption)</td><td class="aws">AWS Lambda</td><td class="note">Identical model. Lambda max timeout = 15 min; Azure Functions consumption plan = 10 min. Both bill per 100ms.</td></tr>
+    <tr><td>Function trigger</td><td class="azure">Service Bus trigger binding</td><td class="aws">SQS Event Source Mapping</td><td class="note">Both auto-poll the queue. AWS requires explicit IAM permissions; Azure uses connection strings or managed identity.</td></tr>
+    <tr><td>Dead-letter queue</td><td class="azure">Service Bus dead-letter sub-queue</td><td class="aws">SQS DLQ (separate queue)</td><td class="note">AWS DLQ is a separate SQS queue you create and link. Azure DLQ is built into Service Bus automatically.</td></tr>
+    <tr><td>Scheduled functions</td><td class="azure">Timer trigger (cron)</td><td class="aws">EventBridge Scheduler → Lambda</td><td class="note">EventBridge Scheduler is the modern AWS equivalent of a cron trigger. Supports one-time and recurring schedules.</td></tr>
+    <tr><td>Fan-out / pub-sub</td><td class="azure">Service Bus Topic</td><td class="aws">SNS → multiple SQS queues</td><td class="note">SNS (Simple Notification Service) broadcasts one message to multiple SQS queues — the AWS fan-out pattern.</td></tr>
+  </tbody>
+</table>
+
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on SQS + Lambda.</p>
+
+  <div class="question" id="q1">
+    <p>1. Your Lambda processes a batch of 10 SQS messages. Message 7 fails (SES is temporarily unavailable). What should the Lambda return?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Raise an exception — this retries all 10 messages including the 9 that already succeeded</label>
+      <label><input type="radio" name="q1" value="b"> Return {"batchItemFailures": [{"itemIdentifier": "&lt;messageId of msg 7&gt;"}]} — only message 7 is retried</label>
+      <label><input type="radio" name="q1" value="c"> Delete message 7 manually and return success — the DLQ handles retries</label>
+      <label><input type="radio" name="q1" value="d"> Return an empty response — SQS detects the failure automatically from CloudWatch</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. batchItemFailures reports exactly which message IDs failed. The 9 successful messages are deleted from the queue; only message 7 remains visible and is retried. This prevents re-sending 9 already-sent emails.','Not quite. Raising an exception retries all 10 messages — including the 9 that already sent emails, causing duplicates. batchItemFailures lets you report only the failed message IDs so only those are retried.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Your Lambda has a 30-second timeout. What should you set the SQS Visibility Timeout to?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> 30 seconds — match the Lambda timeout exactly</label>
+      <label><input type="radio" name="q2" value="b"> 3 minutes (180 seconds) — 6× the Lambda timeout</label>
+      <label><input type="radio" name="q2" value="c"> 14 days — the maximum retention period</label>
+      <label><input type="radio" name="q2" value="d"> 5 seconds — shorter than Lambda timeout so messages retry quickly</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. The visibility timeout must be longer than your Lambda timeout (including retry time and overhead). AWS recommends 6×. If visibility timeout equals the Lambda timeout, a slow Lambda invocation will cause the message to reappear before Lambda finishes — causing duplicate processing.','Not quite. If visibility timeout equals the Lambda timeout, a slow invocation causes the message to reappear while Lambda is still processing it — duplicate processing. Set it to at least 6× the Lambda timeout.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. You need to process trade audit events in strict chronological order. Which SQS queue type should you use?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Standard Queue — higher throughput is more important than order</label>
+      <label><input type="radio" name="q3" value="b"> FIFO Queue — guarantees first-in-first-out ordering and exactly-once delivery</label>
+      <label><input type="radio" name="q3" value="c"> Standard Queue with message timestamps — sort in Lambda before processing</label>
+      <label><input type="radio" name="q3" value="d"> Two Standard Queues in sequence — chaining maintains order</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. FIFO queues guarantee strict ordering and exactly-once delivery — both critical for an audit log where event sequence is legally significant. The 3,000 msg/sec limit is more than sufficient for audit events.','Not quite. Standard queues offer best-effort ordering only — messages can arrive out of order. For an audit log where event sequence matters for compliance, FIFO queues provide the strict ordering guarantee required.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. A message has been retried 3 times and keeps failing. Where does it go, and what should trigger immediately?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> It is permanently deleted from SQS after the retry limit</label>
+      <label><input type="radio" name="q4" value="b"> It moves to the Dead-Letter Queue, and a CloudWatch alarm on DLQ depth should notify on-call</label>
+      <label><input type="radio" name="q4" value">It stays in the original queue indefinitely until manually deleted</label>
+      <label><input type="radio" name="q4" value="d"> Lambda automatically logs it to CloudWatch and the message is deleted</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. After maxReceiveCount retries, the message moves to the Dead-Letter Queue. A CloudWatch alarm on ApproximateNumberOfMessagesVisible > 0 on the DLQ should page on-call immediately — for a financial app, a failed trade confirmation is not something to discover during a weekly review.','Not quite. Failed messages move to the Dead-Letter Queue after exhausting retries. The DLQ holds them for investigation. You must also configure a CloudWatch alarm on the DLQ so failures are surfaced immediately rather than silently accumulating.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  SQS decouples slow/failure-prone work from your API response. Your ECS API puts a message on the queue and returns immediately — Lambda processes it in the background. Always configure a <strong>DLQ</strong> and alarm on it. Set <strong>visibility timeout = 6× Lambda timeout</strong>. Use <strong>batchItemFailures</strong> to retry only failed messages in a batch. Use <strong>FIFO queues</strong> when event order matters (audit logs). Lambda only needs <code>sqs:ReceiveMessage</code> + <code>sqs:DeleteMessage</code> — nothing else.
+</div>
+
+<div class="lesson-nav">
+  <a href="0009-terraform.html">← L9: Terraform</a> ·
+  <a href="0011-cloudwatch.html">L11: CloudWatch →</a> ·
+  <a href="0012-cicd.html">L12: CI/CD →</a><br><br>
+  <strong>Ask your teacher:</strong> SNS fan-out, EventBridge schedules, Lambda Layers, Lambda VPC access for RDS, or Step Functions for multi-step workflows — ask in the terminal.
+</div>
+<footer>
+  Sources: <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html" target="_blank">Amazon SQS Developer Guide</a> · <a href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank">AWS Lambda Developer Guide</a> · <a href="https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html" target="_blank">Lambda with SQS</a>
+</footer>
+</article>
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const sel = document.querySelector('input[name="'+qid+'"]:checked');
+  const fb  = document.getElementById(qid+'-feedback');
+  if (!sel) { fb.textContent='Please select an answer.'; fb.className='feedback wrong'; return; }
+  fb.textContent = (sel.value===correctVal ? '✓ '+correctMsg : '✗ '+wrongMsg);
+  fb.className   = 'feedback '+(sel.value===correctVal ? 'correct' : 'wrong');
+}
+</script>
+</body>
+</html>

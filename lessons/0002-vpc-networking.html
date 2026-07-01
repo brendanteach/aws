@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 2 — VPC: The Network Foundation of Your Financial App</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #6c3483;
+    --code-bg: #f8f7f4;
+    --public-bg: #eaf4ea;
+    --private-bg: #eaf0fb;
+    --db-bg: #fdf5e6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article {
+    max-width: 740px;
+    margin: 3rem auto 6rem;
+  }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+
+  h2 {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin: 2.5rem 0 0.8rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  a { color: var(--accent); }
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  /* VPC diagram */
+  .vpc-diagram {
+    border: 2px solid #7d3c98;
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.5rem 0;
+    background: #fdfbff;
+    font-family: monospace;
+    font-size: 0.78rem;
+    position: relative;
+  }
+
+  .vpc-label {
+    position: absolute;
+    top: -0.7rem;
+    left: 1rem;
+    background: #fdfbff;
+    padding: 0 0.4rem;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: #7d3c98;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .az-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-top: 0.5rem;
+  }
+
+  .az-box {
+    border: 1px dashed #aaa;
+    border-radius: 5px;
+    padding: 0.7rem;
+  }
+
+  .az-title {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+
+  .subnet {
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.4rem;
+    font-family: sans-serif;
+    font-size: 0.75rem;
+  }
+
+  .subnet-public  { background: var(--public-bg);  border: 1px solid #a9d5a9; }
+  .subnet-private { background: var(--private-bg); border: 1px solid #a9c0eb; }
+  .subnet-db      { background: var(--db-bg);      border: 1px solid #f0c080; }
+
+  .subnet-label { font-weight: bold; color: var(--ink); font-size: 0.72rem; }
+  .subnet-cidr  { color: var(--muted); font-size: 0.68rem; }
+  .subnet-items { margin-top: 0.2rem; }
+  .subnet-item  { font-size: 0.7rem; color: #333; }
+
+  .igw-row {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 0.8rem;
+  }
+
+  .igw-box {
+    flex: 1;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 0.4rem 0.7rem;
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    background: white;
+    text-align: center;
+  }
+
+  .igw-box .name { font-weight: bold; color: var(--ink); }
+  .igw-box .desc { color: var(--muted); font-size: 0.66rem; }
+
+  /* Comparison table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+
+  thead tr { background: var(--ink); color: white; }
+
+  th {
+    padding: 0.6rem 0.9rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  td {
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td { background: var(--light); }
+
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Callout */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn   { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance{ background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info   { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+
+  /* Traffic flow */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.83rem;
+    line-height: 1.8;
+  }
+
+  .flow-title {
+    font-family: sans-serif;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    font-style: normal;
+  }
+
+  .arrow { color: var(--aws-orange); }
+
+  /* Quiz */
+  .quiz {
+    background: var(--light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 2.5rem 0;
+  }
+
+  .quiz h2 { border: none; margin-top: 0; }
+
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+
+  .options label {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    margin: 0.25rem 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.93rem;
+    transition: background 0.15s;
+  }
+
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+
+  .feedback {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 3px;
+    font-size: 0.88rem;
+    display: none;
+  }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+
+  .check-btn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-family: sans-serif;
+  }
+  .check-btn:hover { background: #333; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin: 0.6rem 0 1.2rem;
+    font-size: 0.8rem;
+    font-family: sans-serif;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.2);
+  }
+
+  /* Nav + footer */
+  .lesson-nav {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-family: sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: sans-serif;
+  }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 02 · Networking</div>
+  <h1>VPC: The Network Foundation of Your Financial App</h1>
+  <div class="subtitle">Subnets, Availability Zones, gateways, and security groups — from scratch</div>
+</header>
+
+<p>Every AWS resource you deploy lives inside a <strong>VPC (Virtual Private Cloud)</strong>. It is the network boundary that separates your app from the internet and from other AWS customers. If you get VPC wrong, your database is exposed or your containers can't reach the internet. Get it right once, and everything else sits safely inside it.</p>
+
+<p>This is the single most important foundational concept in AWS. Azure has VNets — VPC is the same idea, but with a few structural differences that matter.</p>
+
+<h2>The VPC for Your Financial App</h2>
+
+<p>Here is the concrete network layout you will use. Two Availability Zones, three subnet tiers.</p>
+
+<div class="legend">
+  <span class="legend-item"><span class="swatch" style="background:#eaf4ea"></span> Public subnet (internet-reachable)</span>
+  <span class="legend-item"><span class="swatch" style="background:#eaf0fb"></span> Private subnet (no inbound from internet)</span>
+  <span class="legend-item"><span class="swatch" style="background:#fdf5e6"></span> DB subnet (isolated, no internet at all)</span>
+</div>
+
+<div class="vpc-diagram">
+  <span class="vpc-label">VPC — us-east-1 — 10.0.0.0/16</span>
+  <div class="az-grid">
+
+    <div class="az-box">
+      <div class="az-title">AZ: us-east-1a</div>
+      <div class="subnet subnet-public">
+        <div class="subnet-label">Public Subnet</div>
+        <div class="subnet-cidr">10.0.1.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ ALB (Application Load Balancer)</div>
+          <div class="subnet-item">▸ NAT Gateway</div>
+        </div>
+      </div>
+      <div class="subnet subnet-private">
+        <div class="subnet-label">Private Subnet</div>
+        <div class="subnet-cidr">10.0.3.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ ECS Fargate tasks</div>
+        </div>
+      </div>
+      <div class="subnet subnet-db">
+        <div class="subnet-label">DB Subnet</div>
+        <div class="subnet-cidr">10.0.5.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ RDS PostgreSQL (primary)</div>
+          <div class="subnet-item">▸ ElastiCache Redis</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="az-box">
+      <div class="az-title">AZ: us-east-1b</div>
+      <div class="subnet subnet-public">
+        <div class="subnet-label">Public Subnet</div>
+        <div class="subnet-cidr">10.0.2.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ ALB (second AZ node)</div>
+        </div>
+      </div>
+      <div class="subnet subnet-private">
+        <div class="subnet-label">Private Subnet</div>
+        <div class="subnet-cidr">10.0.4.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ ECS Fargate tasks</div>
+        </div>
+      </div>
+      <div class="subnet subnet-db">
+        <div class="subnet-label">DB Subnet</div>
+        <div class="subnet-cidr">10.0.6.0/24</div>
+        <div class="subnet-items">
+          <div class="subnet-item">▸ RDS PostgreSQL (standby)</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="igw-row">
+    <div class="igw-box">
+      <div class="name">Internet Gateway</div>
+      <div class="desc">Attached to VPC. Allows public subnets to reach internet.</div>
+    </div>
+    <div class="igw-box">
+      <div class="name">NAT Gateway</div>
+      <div class="desc">In public subnet. Lets private subnets make outbound calls — blocks inbound.</div>
+    </div>
+    <div class="igw-box">
+      <div class="name">VPC Endpoints</div>
+      <div class="desc">S3, Secrets Manager. Private subnets reach AWS services without NAT.</div>
+    </div>
+  </div>
+</div>
+
+<h2>The Six Building Blocks</h2>
+
+<h3>1. VPC</h3>
+<p>A VPC is a logically isolated network inside AWS. You define a CIDR block — e.g. <code>10.0.0.0/16</code> — which gives you 65,536 IP addresses to assign to subnets and resources. One VPC spans one AWS Region.</p>
+
+<div class="callout info">
+  <strong>Azure analogy: Azure VNet</strong>
+  Nearly identical concept. One key difference: <strong>AWS VPCs have no internet access by default</strong>. An Azure VNet has outbound internet by default. In AWS you must explicitly attach an Internet Gateway — nothing gets in or out until you do.
+</div>
+
+<h3>2. Subnets</h3>
+<p>A subnet is a slice of your VPC CIDR assigned to <em>one specific Availability Zone</em>. A subnet with a route to an Internet Gateway is <strong>public</strong>. A subnet without that route is <strong>private</strong>. That's the entire definition — it's about the route table, not a setting on the subnet itself.</p>
+
+<p>The three-tier pattern for a financial app:</p>
+<table>
+  <thead><tr><th>Tier</th><th>What lives here</th><th>Can reach internet?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Public</strong></td><td>ALB, NAT Gateway</td><td>Yes — bidirectional via Internet Gateway</td></tr>
+    <tr><td><strong>Private</strong></td><td>ECS containers (your API)</td><td>Outbound only — via NAT Gateway</td></tr>
+    <tr><td><strong>DB</strong></td><td>RDS, ElastiCache</td><td>No internet access at all</td></tr>
+  </tbody>
+</table>
+
+<h3>3. Internet Gateway (IGW)</h3>
+<p>The IGW is what makes a VPC reachable from the internet. You attach one per VPC. Public subnets have a route <code>0.0.0.0/0 → IGW</code> in their route table. Without that route, the subnet is private.</p>
+
+<h3>4. NAT Gateway</h3>
+<p>Private subnet resources (like your ECS containers) often need to make <em>outbound</em> calls — pulling Docker images from ECR, calling the Alpaca API, fetching market data. But they must not be reachable from the internet inbound.</p>
+
+<p>The NAT Gateway solves this: it sits in a <strong>public</strong> subnet and translates private IPs to its own public IP for outbound calls. Private subnets route <code>0.0.0.0/0 → NAT Gateway</code>. The internet can never initiate a connection back.</p>
+
+<div class="callout warn">
+  <strong>Cost note</strong>
+  NAT Gateways cost ~$0.045/hr + $0.045/GB of data processed. For high-throughput financial apps pulling large market data sets, this adds up. VPC Endpoints for S3 and Secrets Manager bypass the NAT Gateway entirely — free traffic on the AWS backbone.
+</div>
+
+<h3>5. Security Groups</h3>
+<p>A Security Group is a stateful firewall attached to a resource (an ECS task, an RDS instance, an ALB). It has inbound and outbound rules. <strong>Stateful</strong> means if you allow inbound port 443, the return traffic is automatically allowed — you don't need an outbound rule for it.</p>
+
+<p>The security group chain for your financial app:</p>
+
+<div class="flow">
+<div class="flow-title">Security Group Rules</div>
+[Internet]
+  <span class="arrow">→</span> ALB Security Group: allow inbound 443 from 0.0.0.0/0
+       <span class="arrow">→</span> ECS Security Group: allow inbound 8080 from ALB Security Group only
+              <span class="arrow">→</span> RDS Security Group: allow inbound 5432 from ECS Security Group only
+              <span class="arrow">→</span> Redis Security Group: allow inbound 6379 from ECS Security Group only
+</div>
+
+<p>You reference security groups by ID in rules, not by IP. So "allow from ECS Security Group" means <em>any resource that has that SG attached</em>. This is more flexible and maintainable than CIDR-based rules.</p>
+
+<div class="callout info">
+  <strong>Azure analogy: NSG (Network Security Group)</strong>
+  Security Groups work like Azure NSGs attached per-resource (NIC level), not per-subnet. One major difference: <strong>AWS Security Groups are deny-by-default with no explicit deny rules</strong> — you only add allow rules. Azure NSGs have an explicit deny rule at the bottom, but the model is similar.
+</div>
+
+<h3>6. VPC Endpoints</h3>
+<p>A VPC Endpoint lets resources in private subnets reach specific AWS services (S3, Secrets Manager, ECR) privately — without going through the NAT Gateway or the public internet. Traffic stays on the AWS internal network.</p>
+
+<p>For a financial app, two endpoints are non-negotiable:</p>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Why you need it</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>com.amazonaws.us-east-1.s3</code></td>
+      <td>ECS containers reading/writing to S3 (audit logs, statements) without NAT costs</td>
+    </tr>
+    <tr>
+      <td><code>com.amazonaws.us-east-1.secretsmanager</code></td>
+      <td>ECS containers fetching DB passwords at startup — must not traverse public internet</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <strong>Azure analogy: Private Endpoint / Service Endpoint</strong>
+  Azure has both Service Endpoints (similar to VPC Gateway Endpoints for S3) and Private Endpoints (similar to VPC Interface Endpoints for Secrets Manager). The AWS terminology differs but the concept — keeping traffic off the public internet — is identical.
+</div>
+
+<h2>How Traffic Actually Flows</h2>
+
+<p>Two flows matter most. Trace through the diagram above as you read each one.</p>
+
+<div class="flow">
+<div class="flow-title">Flow 1 — User's browser → Your API</div>
+User browser
+  <span class="arrow">→</span> DNS (Route 53) resolves api.yourapp.com
+  <span class="arrow">→</span> CloudFront (TLS termination, WAF)
+  <span class="arrow">→</span> ALB in public subnet (HTTPS → HTTP internally)
+  <span class="arrow">→</span> ECS Fargate task in private subnet (port 8080)
+  <span class="arrow">→</span> RDS in DB subnet (port 5432)
+  <span class="arrow">←</span> Response travels back the same path
+</div>
+
+<div class="flow">
+<div class="flow-title">Flow 2 — ECS container calls Alpaca API (external)</div>
+ECS Fargate task (private subnet, 10.0.3.x)
+  <span class="arrow">→</span> Route table: 0.0.0.0/0 → NAT Gateway (in public subnet)
+  <span class="arrow">→</span> NAT Gateway translates to its public IP
+  <span class="arrow">→</span> Internet Gateway → Alpaca API at api.alpaca.markets
+  <span class="arrow">←</span> Response comes back to NAT Gateway → ECS task
+  (Alpaca API never sees your private IP — only the NAT Gateway's public IP)
+</div>
+
+<h2>Azure → AWS Networking Map</h2>
+
+<table>
+  <thead>
+    <tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Key difference</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Virtual network</td>
+      <td class="azure">VNet</td>
+      <td class="aws">VPC</td>
+      <td class="note">AWS VPC has no internet by default; Azure VNet does</td>
+    </tr>
+    <tr>
+      <td>Subnet</td>
+      <td class="azure">Subnet</td>
+      <td class="aws">Subnet</td>
+      <td class="note">AWS subnets are AZ-specific; Azure subnets span the whole VNet</td>
+    </tr>
+    <tr>
+      <td>Internet access</td>
+      <td class="azure">Default (no config needed)</td>
+      <td class="aws">Internet Gateway (explicit)</td>
+      <td class="note">Must attach IGW and add a route — nothing is implied</td>
+    </tr>
+    <tr>
+      <td>Outbound-only NAT</td>
+      <td class="azure">Azure NAT Gateway</td>
+      <td class="aws">NAT Gateway</td>
+      <td class="note">AWS NAT Gateway is AZ-specific; create one per AZ for HA</td>
+    </tr>
+    <tr>
+      <td>Resource firewall</td>
+      <td class="azure">NSG (per NIC or subnet)</td>
+      <td class="aws">Security Group</td>
+      <td class="note">AWS SGs: allow-only, no explicit deny. Reference SGs by ID in rules.</td>
+    </tr>
+    <tr>
+      <td>Subnet firewall</td>
+      <td class="azure">NSG on subnet</td>
+      <td class="aws">Network ACL (NACL)</td>
+      <td class="note">NACLs are stateless — you must allow inbound AND outbound explicitly. Rarely needed if SGs are correct.</td>
+    </tr>
+    <tr>
+      <td>Private service access</td>
+      <td class="azure">Private Endpoint / Service Endpoint</td>
+      <td class="aws">VPC Endpoint</td>
+      <td class="note">Gateway endpoints (S3, DynamoDB) are free; Interface endpoints cost ~$7/mo each</td>
+    </tr>
+    <tr>
+      <td>Route table</td>
+      <td class="azure">User-defined route (UDR)</td>
+      <td class="aws">Route Table</td>
+      <td class="note">Same concept; associated per subnet</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout finance">
+  <strong>Finance requirement: No DB subnet ever routes to the internet</strong>
+  RDS and ElastiCache subnets must have <em>no</em> route to the Internet Gateway and no route to the NAT Gateway. Their only routes are local VPC traffic. Database engines should only be reachable from the ECS security group on the specific port — nothing else. This is the baseline for any financial or PCI-DSS-adjacent deployment.
+</div>
+
+<h2>The Minimum VPC Checklist</h2>
+
+<p>Before deploying anything to production, verify:</p>
+
+<table>
+  <thead><tr><th>#</th><th>Check</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>At least 2 AZs used (public + private subnets in each)</td><td>Single-AZ = single point of failure; unacceptable for finance</td></tr>
+    <tr><td>2</td><td>RDS and ElastiCache in DB subnets with no internet route</td><td>Data stores must never be internet-reachable</td></tr>
+    <tr><td>3</td><td>Security group chain references SG IDs, not CIDRs</td><td>IP-based rules break when containers scale; SG-to-SG rules scale automatically</td></tr>
+    <tr><td>4</td><td>VPC Endpoint for S3 and Secrets Manager created</td><td>Avoids NAT costs and keeps sensitive traffic off the internet</td></tr>
+    <tr><td>5</td><td>NAT Gateway in each AZ (one per AZ if you need cross-AZ HA)</td><td>A NAT Gateway is AZ-specific; if that AZ fails, the other AZ's private subnet has no outbound</td></tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions — same quiz format as Lesson 1.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. What makes a subnet "public" in AWS?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A checkbox in the subnet settings labeled "public"</label>
+      <label><input type="radio" name="q1" value="b"> The subnet has a route to an Internet Gateway in its route table</label>
+      <label><input type="radio" name="q1" value="c"> Resources in the subnet have public IP addresses assigned</label>
+      <label><input type="radio" name="q1" value="d"> The subnet's security group allows inbound from 0.0.0.0/0</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. A subnet is public purely because its route table contains 0.0.0.0/0 → Internet Gateway. Public IP assignment on resources is a separate, optional setting.','Not quite. The subnet type is determined by the route table — specifically whether there is a route to an Internet Gateway. Security groups and IP assignment are separate concerns.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. Your ECS containers (in a private subnet) need to call the Alpaca trading API on the internet. Which component routes that outbound traffic?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Internet Gateway, attached directly to the VPC</label>
+      <label><input type="radio" name="q2" value="b"> Application Load Balancer, forwarding outbound requests</label>
+      <label><input type="radio" name="q2" value="c"> NAT Gateway, sitting in a public subnet</label>
+      <label><input type="radio" name="q2" value="d"> VPC Endpoint, connecting to the Alpaca API privately</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','c','Correct. The NAT Gateway allows private subnet resources to make outbound internet calls while blocking unsolicited inbound connections. VPC Endpoints only work for AWS-managed services, not external APIs.','Not quite. The Internet Gateway only routes traffic for resources in public subnets. Private subnets need the NAT Gateway as their outbound path. VPC Endpoints only connect to AWS services, not external APIs like Alpaca.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. You write an ECS Security Group rule: "allow inbound port 8080 from the ALB Security Group." What does this mean in practice?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Any resource on port 8080 in the same VPC can reach ECS</label>
+      <label><input type="radio" name="q3" value="b"> Only resources that have the ALB Security Group attached can reach ECS on port 8080</label>
+      <label><input type="radio" name="q3" value="c"> The ALB's public IP address is whitelisted to reach ECS on port 8080</label>
+      <label><input type="radio" name="q3" value="d"> ECS containers can call the ALB on port 8080</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. Referencing a Security Group ID in a rule means: traffic is allowed only from resources that have that exact SG attached. As ALB tasks scale, their IPs change — but they always have that SG, so the rule holds without any changes.','Not quite. When you reference a Security Group in a rule, AWS allows traffic from any resource carrying that SG — regardless of IP address. This is far more robust than IP-based rules when resources scale.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. Why should you create a VPC Endpoint for Secrets Manager?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> So ECS containers can reach Secrets Manager faster via a private AWS link, avoiding the public internet</label>
+      <label><input type="radio" name="q4" value="b"> Because Secrets Manager is not available in private subnets without it</label>
+      <label><input type="radio" name="q4" value="c"> To reduce the number of IAM permissions needed to read secrets</label>
+      <label><input type="radio" name="q4" value="d"> To allow Secrets Manager to push secrets into the ECS container automatically</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','a','Correct. A VPC Interface Endpoint for Secrets Manager gives your ECS containers a private network path to fetch secrets — no NAT Gateway, no public internet traversal. For a financial app, DB credentials and API keys should never cross the public internet.','Not quite. The reason is security and cost: a VPC Endpoint keeps sensitive credential fetching traffic on the private AWS backbone, and avoids NAT Gateway data processing fees.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  VPC = your private network. Subnets = tiers (public → ALB, private → ECS, DB → RDS). Internet Gateway = inbound/outbound for public subnets. NAT Gateway = outbound-only for private subnets. Security Groups = stateful firewalls chained by SG ID, not IP. VPC Endpoints = keep AWS service traffic off the internet. With this layout, your financial app data never touches the public internet between your backend and your database.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">← Lesson 1: AWS Architecture Map</a><br><br>
+  <strong>Next:</strong> <em>Lesson 3 — IAM: Identity, Roles, and Policies (the most important AWS concept for production)</em><br><br>
+  <strong>Ask your teacher anything:</strong> If any concept is unclear — CIDR sizing, NAT Gateway HA, NACLs vs Security Groups — ask a follow-up in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank">Amazon VPC User Guide</a> ·
+  <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html" target="_blank">NAT Gateways</a> ·
+  <a href="https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html" target="_blank">VPC Endpoints (PrivateLink)</a> ·
+  <a href="https://aws.amazon.com/architecture/well-architected/" target="_blank">Well-Architected Framework</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

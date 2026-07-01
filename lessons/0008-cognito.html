@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 8 — Cognito: User Authentication for a Financial App</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --blue: #2471a3;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .dim { color: #888; } .kw { color: #569cd6; }
+
+  /* Two-box concept split */
+  .concept-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 1.2rem 0 1.8rem; }
+  .concept-box { border: 1px solid var(--border); border-radius: 5px; padding: 0.9rem 1rem; }
+  .concept-box.active { border-color: var(--aws-orange); background: #fffdf5; }
+  .concept-box.muted  { background: #f8f8f8; }
+  .cb-label { font-family: sans-serif; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.25rem; }
+  .cb-name  { font-size: 0.95rem; font-weight: bold; color: var(--ink); margin-bottom: 0.3rem; }
+  .cb-desc  { font-size: 0.83rem; line-height: 1.5; color: var(--ink); }
+  .cb-use   { font-size: 0.78rem; color: var(--green); margin-top: 0.3rem; font-family: sans-serif; }
+
+  /* Flow diagram */
+  .flow-diagram {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 2;
+    background: var(--code-bg);
+  }
+  .flow-diagram .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+  .dim2  { color: #999; }
+
+  /* JWT anatomy */
+  .jwt-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 1rem 0 1.5rem; }
+  .jwt-part { border-radius: 4px; padding: 0.7rem 0.85rem; font-family: sans-serif; font-size: 0.8rem; }
+  .jwt-header  { background: #fde8d8; border: 1px solid #f4a05a; }
+  .jwt-payload { background: #d8eaf5; border: 1px solid #7ab5d8; }
+  .jwt-sig     { background: #e8f5e8; border: 1px solid #7aba7a; }
+  .jwt-part .jp-label { font-size: 0.68rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.25rem; }
+  .jwt-part .jp-name  { font-weight: bold; color: var(--ink); margin-bottom: 0.3rem; font-size: 0.85rem; }
+  .jwt-part .jp-items { font-size: 0.75rem; color: #444; line-height: 1.6; }
+
+  /* Callouts */
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.92rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 08 · Authentication</div>
+  <h1>Cognito: User Authentication for a Financial App</h1>
+  <div class="subtitle">User Pools, JWTs, MFA, and validating tokens in ECS — without calling Cognito on every request</div>
+</header>
+
+<p>Your architecture has a frontend, a backend, and a database. But right now anyone can call <code>GET /api/trades</code>. You need authentication — a way to know who is making each request and whether they are allowed to. <strong>Amazon Cognito</strong> is the AWS-managed identity service that handles user registration, login, MFA, and token issuance.</p>
+
+<h2>Cognito Has Two Distinct Services</h2>
+
+<div class="concept-split">
+  <div class="concept-box active">
+    <div class="cb-label">This lesson</div>
+    <div class="cb-name">User Pools</div>
+    <div class="cb-desc">A managed user directory. Handles sign-up, sign-in, MFA, password reset, and issues JWT tokens. Your app users live here.</div>
+    <div class="cb-use">Use this for: login, registration, MFA, JWT tokens for your API</div>
+  </div>
+  <div class="concept-box muted">
+    <div class="cb-label">Advanced / optional</div>
+    <div class="cb-name">Identity Pools</div>
+    <div class="cb-desc">Exchanges tokens (from User Pools or social providers) for temporary AWS credentials. Used when your frontend JavaScript needs to call AWS services directly (S3, DynamoDB).</div>
+    <div class="cb-use">Use this for: frontend code calling AWS directly — not needed when all AWS access goes through your ECS API</div>
+  </div>
+</div>
+
+<p>For a financial web app where all AWS access goes through the ECS backend, <strong>you only need a User Pool</strong>. The frontend logs in, gets a JWT, and sends it to the API. The API validates the JWT and handles all AWS calls itself using its IAM Task Role.</p>
+
+<div class="callout info">
+  <strong>Azure analogy: Azure AD B2C</strong>
+  Cognito User Pools ≈ Azure AD B2C. Both manage a user directory, issue JWT tokens (ID token + access token), support MFA, social login (Google, Apple), and OAuth2/OIDC flows. The main difference: Cognito is simpler to configure for AWS-native apps but has a less flexible UI customization story than B2C.
+</div>
+
+<h2>The Authentication Flow</h2>
+
+<p>Cognito uses standard OAuth2/OIDC. Here is the complete flow from user click to validated API request:</p>
+
+<div class="flow-diagram">
+  <div class="ftitle">Login → JWT → API call — full flow</div>
+1. User clicks "Log In" in the React SPA
+  <span class="arrow">→</span> SPA redirects to Cognito Hosted UI:
+     https://auth.finapp.com/login?client_id=...&redirect_uri=https://app.finapp.com/callback
+
+2. User enters email + password + MFA code on Cognito's page
+  <span class="arrow">→</span> Cognito validates credentials
+  <span class="arrow">→</span> Issues three tokens and redirects to redirect_uri with an auth code
+  <span class="arrow">→</span> SPA exchanges auth code for tokens (PKCE flow)
+
+3. SPA receives:
+   <span class="arrow">·</span> ID Token      <span class="dim2">(who the user is: email, name, custom claims)</span>
+   <span class="arrow">·</span> Access Token  <span class="dim2">(what the user can do: sent to your API)</span>
+   <span class="arrow">·</span> Refresh Token <span class="dim2">(exchange for new tokens when access token expires, ~1hr)</span>
+
+4. SPA stores tokens in memory <span class="dim2">(NOT localStorage — XSS risk)</span>
+
+5. SPA calls: GET https://app.finapp.com/api/trades
+   Header: Authorization: Bearer <span class="dim2">&lt;access_token&gt;</span>
+
+6. ECS backend receives request
+  <span class="arrow">→</span> Extracts JWT from Authorization header
+  <span class="arrow">→</span> Fetches Cognito's JWKS (public keys) — cached, not per-request
+  <span class="arrow">→</span> Validates: signature ✓ · expiry ✓ · issuer ✓ · audience ✓
+  <span class="arrow">→</span> Reads user_id (sub) from token payload
+  <span class="arrow">→</span> Queries RDS for that user's trades → returns response
+
+7. Token expires after 1 hour
+  <span class="arrow">→</span> SPA uses Refresh Token to get new Access Token silently
+</div>
+
+<h2>The JWT — Three Parts</h2>
+
+<p>A JWT (JSON Web Token) is a base64-encoded string with three dot-separated sections. You never need to call Cognito to validate it — the signature tells you it is genuine.</p>
+
+<div class="jwt-parts">
+  <div class="jwt-part jwt-header">
+    <div class="jp-label">Part 1</div>
+    <div class="jp-name">Header</div>
+    <div class="jp-items">
+      alg: RS256<br>
+      kid: abc123<br>
+      <em>(which key signed this)</em>
+    </div>
+  </div>
+  <div class="jwt-part jwt-payload">
+    <div class="jp-label">Part 2</div>
+    <div class="jp-name">Payload (claims)</div>
+    <div class="jp-items">
+      sub: user-uuid<br>
+      email: user@…<br>
+      exp: 1719999999<br>
+      iss: cognito URL<br>
+      aud: your-app-client-id
+    </div>
+  </div>
+  <div class="jwt-part jwt-sig">
+    <div class="jp-label">Part 3</div>
+    <div class="jp-name">Signature</div>
+    <div class="jp-items">
+      RSA-signed hash<br>
+      of header+payload<br>
+      using Cognito's<br>
+      private key
+    </div>
+  </div>
+</div>
+
+<p>Your ECS backend verifies the signature using Cognito's <strong>public key</strong>, fetched once from the JWKS endpoint and then cached. If the signature is valid and the token is not expired, the user is authenticated — no round-trip to Cognito needed on each request.</p>
+
+<pre><span class="cmt"># Cognito JWKS endpoint — fetch once at startup, cache in memory</span>
+https://cognito-idp.us-east-1.amazonaws.com/{user_pool_id}/.well-known/jwks.json
+
+<span class="cmt"># Python example (using python-jose or PyJWT)</span>
+<span class="kw">from</span> jose <span class="kw">import</span> jwk, jwt
+
+<span class="kw">def</span> <span class="key">validate_token</span>(token: str) -> dict:
+    header  = jwt.get_unverified_header(token)
+    key     = get_jwk_for_kid(header[<span class="str">"kid"</span>])   <span class="cmt"># from cached JWKS</span>
+    payload = jwt.decode(
+        token,
+        key,
+        algorithms=[<span class="str">"RS256"</span>],
+        audience=<span class="str">COGNITO_APP_CLIENT_ID</span>,
+        issuer=<span class="str">f"https://cognito-idp.us-east-1.amazonaws.com/{USER_POOL_ID}"</span>
+    )
+    <span class="kw">return</span> payload  <span class="cmt"># contains sub (user_id), email, custom claims</span></pre>
+
+<div class="callout finance">
+  <strong>Never call Cognito to validate tokens in your hot path</strong>
+  If you call <code>cognito.get_user(token)</code> on every API request, you add network latency and create a Cognito availability dependency on every trade. JWT validation is done locally using the public key — no network call required after the initial JWKS fetch.
+</div>
+
+<h2>Cognito User Pool Configuration</h2>
+
+<h3>Core settings</h3>
+
+<table>
+  <thead><tr><th>Setting</th><th>Value for financial app</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Sign-in options</td><td>Email address</td><td>Usernames are forgettable; email is the financial industry standard</td></tr>
+    <tr><td>Password policy</td><td>Min 12 chars · upper + lower + number + symbol</td><td>Meets most financial compliance baselines</td></tr>
+    <tr><td>MFA</td><td><strong>Required</strong> — TOTP (authenticator app)</td><td>Non-negotiable for a financial app; SMS MFA is vulnerable to SIM swapping</td></tr>
+    <tr><td>Account recovery</td><td>Email only (not SMS)</td><td>SMS recovery is a SIM-swap attack vector</td></tr>
+    <tr><td>Advanced security</td><td>Enabled — Cognito detects compromised credentials and anomalous logins</td><td>Cognito checks against known breach databases; blocks common passwords</td></tr>
+    <tr><td>Token expiry — access</td><td>1 hour</td><td>Short window limits blast radius of a stolen token</td></tr>
+    <tr><td>Token expiry — refresh</td><td>7–30 days</td><td>Users stay logged in across sessions without re-entering password + MFA</td></tr>
+    <tr><td>Custom domain</td><td>auth.finapp.com</td><td>Branded login page; required for custom CSS on Hosted UI</td></tr>
+  </tbody>
+</table>
+
+<h3>App Client</h3>
+
+<p>An <strong>App Client</strong> is how your SPA identifies itself to Cognito. One per environment (prod, staging).</p>
+
+<pre>App client name:     finapp-spa-prod
+Client type:         Public <span class="dim">(SPA — no server secret, uses PKCE)</span>
+Auth flows:          Authorization code + PKCE <span class="dim">(modern, secure)</span>
+Allowed callbacks:   https://app.finapp.com/callback
+Allowed sign-out:    https://app.finapp.com/
+Allowed scopes:      openid · email · profile
+
+<span class="cmt"># The App Client ID goes into your React app's config</span>
+<span class="cmt"># The App Client Secret is NOT used for public SPAs</span></pre>
+
+<h2>Frontend Integration</h2>
+
+<p>AWS Amplify provides a JavaScript SDK that wraps the Cognito OAuth flow. You do not need to implement PKCE or token exchange yourself.</p>
+
+<pre><span class="cmt">// Install: npm install aws-amplify</span>
+
+<span class="kw">import</span> { Amplify } <span class="kw">from</span> <span class="str">'aws-amplify'</span>
+<span class="kw">import</span> { signIn, signOut, fetchAuthSession } <span class="kw">from</span> <span class="str">'aws-amplify/auth'</span>
+
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      <span class="key">userPoolId</span>:       <span class="str">'us-east-1_XXXXXXXX'</span>,
+      <span class="key">userPoolClientId</span>: <span class="str">'your-app-client-id'</span>,
+      <span class="key">loginWith</span>: {
+        <span class="key">oauth</span>: {
+          <span class="key">domain</span>:            <span class="str">'auth.finapp.com'</span>,
+          <span class="key">scopes</span>:            [<span class="str">'openid'</span>, <span class="str">'email'</span>, <span class="str">'profile'</span>],
+          <span class="key">redirectSignIn</span>:    [<span class="str">'https://app.finapp.com/callback'</span>],
+          <span class="key">redirectSignOut</span>:   [<span class="str">'https://app.finapp.com/'</span>],
+          <span class="key">responseType</span>:      <span class="str">'code'</span>  <span class="cmt">// PKCE</span>
+        }
+      }
+    }
+  }
+})
+
+<span class="cmt">// Get access token for API calls</span>
+<span class="kw">async function</span> <span class="key">callApi</span>(path) {
+  <span class="kw">const</span> session     = <span class="kw">await</span> fetchAuthSession()
+  <span class="kw">const</span> accessToken = session.tokens.accessToken.toString()
+  <span class="kw">return</span> fetch(<span class="str">`/api${path}`</span>, {
+    headers: { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${accessToken}`</span> }
+  })
+}</pre>
+
+<h2>Backend JWT Validation Middleware</h2>
+
+<p>Your ECS API validates the JWT on every request using a middleware/dependency. This runs locally — no Cognito call.</p>
+
+<pre><span class="cmt"># FastAPI example — reusable auth dependency</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> Depends, HTTPException, Security
+<span class="kw">from</span> fastapi.security <span class="kw">import</span> HTTPBearer
+
+bearer = HTTPBearer()
+
+<span class="kw">def</span> <span class="key">get_current_user</span>(token = Security(bearer)) -> dict:
+    <span class="kw">try</span>:
+        payload = validate_token(token.credentials)
+        <span class="kw">return</span> {<span class="str">"user_id"</span>: payload[<span class="str">"sub"</span>], <span class="str">"email"</span>: payload[<span class="str">"email"</span>]}
+    <span class="kw">except</span> Exception:
+        <span class="kw">raise</span> HTTPException(status_code=<span class="num">401</span>, detail=<span class="str">"Invalid token"</span>)
+
+<span class="cmt"># Every protected endpoint gets the user injected automatically</span>
+@app.get(<span class="str">"/api/trades"</span>)
+<span class="kw">def</span> <span class="key">get_trades</span>(user = Depends(get_current_user), db = Depends(get_db)):
+    <span class="kw">return</span> db.query(Trade).filter(Trade.user_id == user[<span class="str">"user_id"</span>]).all()</pre>
+
+<div class="callout finance">
+  <strong>Finance requirement: scope queries to the authenticated user</strong>
+  Every database query for user-specific data — trades, positions, balances — must filter by <code>user_id</code> from the validated JWT. Never trust a <code>user_id</code> from the request body or query parameter. A user manipulating <code>?user_id=another_user</code> should get their own data, not someone else's.
+</div>
+
+<h2>Where Cognito Sits in the Architecture</h2>
+
+<pre>User browser
+  <span class="arrow">→</span> Cognito Hosted UI (auth.finapp.com)       <span class="dim"># login + MFA</span>
+  <span class="dim">←</span> Access token + ID token + Refresh token
+
+SPA stores tokens in memory, sends:
+  Authorization: Bearer &lt;access_token&gt;
+  <span class="arrow">→</span> CloudFront <span class="arrow">→</span> ALB <span class="arrow">→</span> ECS backend
+
+ECS backend:
+  <span class="arrow">→</span> Validate JWT locally (JWKS cached)        <span class="dim"># no Cognito call</span>
+  <span class="arrow">→</span> Extract user_id (sub) from payload
+  <span class="arrow">→</span> Query RDS WHERE user_id = $sub
+  <span class="dim">←</span> Return only that user's data</pre>
+
+<div class="callout warn">
+  <strong>Refresh the JWKS cache periodically</strong>
+  Cognito rotates its signing keys occasionally. If you cache JWKS forever, validation will fail after a key rotation. Cache for 24 hours and refresh on a <code>kid</code> miss (when the JWT header references a key ID you don't have cached).
+</div>
+
+<h2>Azure → AWS Auth Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure AD B2C</th><th>Cognito User Pool</th><th>Difference</th></tr></thead>
+  <tbody>
+    <tr><td>User directory</td><td class="azure">Azure AD B2C tenant</td><td class="aws">User Pool</td><td class="note">Cognito is simpler to set up; B2C has more policy flexibility</td></tr>
+    <tr><td>App registration</td><td class="azure">App registration</td><td class="aws">App Client</td><td class="note">Same concept — one per frontend app</td></tr>
+    <tr><td>Login page</td><td class="azure">B2C user flows / custom policies</td><td class="aws">Hosted UI</td><td class="note">Both support custom CSS; B2C has deeper customization via custom policies (HTML templates)</td></tr>
+    <tr><td>MFA</td><td class="azure">Conditional access + MFA</td><td class="aws">User Pool MFA settings</td><td class="note">Cognito MFA: TOTP (app) or SMS. Use TOTP — SMS is SIM-swap vulnerable.</td></tr>
+    <tr><td>Token type</td><td class="azure">JWT (ID + access token)</td><td class="aws">JWT (ID + access + refresh)</td><td class="note">Same JWT standard; different claim names</td></tr>
+    <tr><td>Public key endpoint</td><td class="azure">/.well-known/openid-configuration</td><td class="aws">/{user_pool_id}/.well-known/jwks.json</td><td class="note">Both OIDC-standard JWKS endpoints</td></tr>
+    <tr><td>Social login</td><td class="azure">Identity providers in B2C</td><td class="aws">Identity providers in User Pool</td><td class="note">Both support Google, Apple, Facebook. Configure in User Pool → Sign-in experience.</td></tr>
+    <tr><td>Custom claims</td><td class="azure">Custom attributes in B2C</td><td class="aws">Custom attributes in User Pool</td><td class="note">Add custom attributes (e.g. account_tier: "premium") to the JWT payload</td></tr>
+  </tbody>
+</table>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on Cognito.</p>
+
+  <div class="question" id="q1">
+    <p>1. A user's access token expires mid-session. What happens, and how is it handled without the user re-entering their password?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> The user is immediately logged out and must log in again with password + MFA</label>
+      <label><input type="radio" name="q1" value="b"> The SPA silently exchanges the refresh token for a new access token — the user sees nothing</label>
+      <label><input type="radio" name="q1" value="c"> The expired access token continues working for 24 hours as a grace period</label>
+      <label><input type="radio" name="q1" value="d"> ECS automatically extends the token's expiry when it sees a valid refresh token header</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. The SPA detects a 401 response (or checks expiry proactively) and uses the refresh token to silently get a new access token from Cognito. The user stays logged in for days or weeks without re-authenticating — until the refresh token itself expires.','Not quite. The refresh token solves this. When the access token expires, the SPA exchanges the refresh token for a new access token silently in the background. The Amplify SDK handles this automatically.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Why should you validate the JWT locally in ECS rather than calling <code>cognito.get_user(token)</code> on every API request?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Cognito's get_user API is deprecated and no longer supported</label>
+      <label><input type="radio" name="q2" value="b"> Local JWT validation adds no network latency and removes Cognito as a dependency in your API's hot path</label>
+      <label><input type="radio" name="q2" value="c"> The ECS Task Role does not have permission to call Cognito</label>
+      <label><input type="radio" name="q2" value="d"> Cognito rate-limits get_user calls to 10 per second per User Pool</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. A JWT signature can be verified locally using Cognito\'s public key (from JWKS, cached). This adds zero network latency and means your API works even if Cognito has a brief outage. The only network call is the initial JWKS fetch at startup.','Not quite. The reason is performance and resilience. Verifying a JWT signature locally takes microseconds and requires no network call. Calling Cognito per request adds ~50–200ms of latency and makes your API dependent on Cognito\'s availability for every trade.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. A user submits <code>GET /api/trades?user_id=another_user_uuid</code> to try to see another user's trades. Your ECS handler uses <code>get_current_user()</code> from the validated JWT. What should happen?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> The query parameter wins — the handler returns the other user's trades</label>
+      <label><input type="radio" name="q3" value="b"> The handler ignores the query parameter and queries RDS using the user_id from the validated JWT only</label>
+      <label><input type="radio" name="q3" value="c"> The request is blocked by the ALB security group before reaching ECS</label>
+      <label><input type="radio" name="q3" value="d"> Cognito detects the mismatch and invalidates the access token</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. The user_id used in database queries must always come from the validated JWT payload — never from request parameters the user controls. The query parameter is ignored. This is the core of authorization in a financial API.','Not quite. The user_id for database queries must always come from the JWT payload (the validated, tamper-proof token), never from user-supplied request parameters. A user can put anything in a query parameter — only the JWT is trustworthy.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. For a financial app, which MFA method should you require in Cognito — and why not the other one?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> SMS (text message) — it is simpler for users and widely supported</label>
+      <label><input type="radio" name="q4" value="b"> TOTP (authenticator app) — SMS MFA is vulnerable to SIM-swapping attacks where an attacker hijacks the phone number</label>
+      <label><input type="radio" name="q4" value="c"> Neither — MFA adds friction and most financial apps skip it for better UX</label>
+      <label><input type="radio" name="q4" value="d"> Both required together — double MFA provides extra protection</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. SMS MFA can be bypassed by a SIM-swapping attack — where an attacker convinces a carrier to transfer the victim\'s phone number to the attacker\'s SIM card. TOTP (Google Authenticator, Authy) generates codes locally on the user\'s device and cannot be hijacked this way.','Not quite. SMS MFA has a well-known vulnerability: SIM swapping. Attackers can social-engineer mobile carriers into reassigning a victim\'s phone number, then receive SMS codes. TOTP (authenticator app) generates codes locally without network involvement, making SIM swapping irrelevant.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  Cognito <strong>User Pool</strong> = managed user directory that issues JWTs. Your SPA authenticates via the <strong>Hosted UI</strong> (OAuth2 + PKCE), stores tokens in memory, and sends the <strong>access token</strong> in the Authorization header. Your ECS backend validates the JWT <strong>locally</strong> using the cached JWKS public key — no Cognito call per request. Always use <strong>TOTP MFA</strong> (not SMS). Always query the database using the <code>sub</code> (user_id) from the validated token, never from request parameters.
+</div>
+
+<div class="lesson-nav">
+  <a href="0007-complete-architecture.html">← L7: Complete Architecture</a><br><br>
+  <strong>See also:</strong> <a href="0009-terraform.html">L9: Terraform — provisioning this architecture as code →</a><br><br>
+  <strong>Ask your teacher anything:</strong> Social login setup, custom JWT claims, Cognito Triggers (Lambda hooks for custom auth logic), or how to handle token refresh in React — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html" target="_blank">Amazon Cognito Developer Guide</a> ·
+  <a href="https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html" target="_blank">Verifying a JWT</a> ·
+  <a href="https://docs.amplify.aws/javascript/build-a-backend/auth/" target="_blank">Amplify Auth (JS)</a>
+</footer>
+
+</article>
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg; feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg; feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

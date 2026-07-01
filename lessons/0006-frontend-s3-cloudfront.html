@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 6 — Frontend on AWS: S3 + CloudFront + ACM</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .key { color: #9cdcfe; }
+  .str { color: #ce9178; }
+  .num { color: #b5cea8; }
+  .cmt { color: #6a9955; }
+  .dim { color: #888; }
+  .kw  { color: #569cd6; }
+
+  /* Architecture diagram */
+  .arch {
+    border: 2px solid var(--aws-orange);
+    border-radius: 8px;
+    padding: 1.3rem;
+    margin: 1.5rem 0;
+    background: #fffdf8;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+  }
+
+  .arch-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: bold;
+    color: var(--aws-orange);
+    margin-bottom: 1rem;
+  }
+
+  .arch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .arch-arrow {
+    color: var(--aws-orange);
+    font-size: 1rem;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .arch-box {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    background: white;
+  }
+
+  .arch-box.orange { border-color: var(--aws-orange); background: #fffdf5; }
+  .arch-box.green  { border-color: var(--green);      background: #f5fbf5; }
+  .arch-box.purple { border-color: var(--purple);     background: #fdf8ff; }
+
+  .arch-box .bname { font-weight: bold; color: var(--ink); font-size: 0.82rem; }
+  .arch-box .bsub  { color: var(--muted); font-size: 0.72rem; line-height: 1.5; margin-top: 0.1rem; }
+
+  .arch-indent { padding-left: 2rem; }
+
+  .behavior-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+  .behavior-table th {
+    background: #333;
+    color: white;
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .behavior-table td {
+    padding: 0.3rem 0.6rem;
+    border-bottom: 1px solid #eee;
+  }
+  .behavior-table tr:nth-child(even) td { background: #f8f8f8; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  /* Flow */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .flow .ftitle {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .arrow { color: var(--aws-orange); }
+
+  /* Steps */
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: 0 0.8rem;
+    margin-bottom: 1.2rem;
+    align-items: start;
+  }
+  .step-num {
+    width: 2rem;
+    height: 2rem;
+    background: var(--ink);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  .step-body { padding-top: 0.1rem; }
+  .step-body strong { display: block; margin-bottom: 0.2rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Checklist */
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li {
+    padding: 0.3rem 0 0.3rem 1.6rem;
+    position: relative;
+    font-size: 0.93rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--muted); }
+
+  /* Quiz */
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 06 · Frontend</div>
+  <h1>Frontend on AWS: S3 + CloudFront + ACM</h1>
+  <div class="subtitle">Hosting your SPA with a custom domain, HTTPS, CDN caching, and WAF — no servers</div>
+</header>
+
+<p>Your ECS backend is running, your RDS database is secured. The last tier is the frontend — the React or Vue SPA your users load in their browsers. On AWS, this is three services working together: <strong>S3</strong> stores the built files, <strong>CloudFront</strong> delivers them globally with caching and TLS, and <strong>ACM</strong> provides the free TLS certificate.</p>
+
+<p>There are no servers to manage. A deployment is: build → upload to S3 → invalidate CloudFront cache.</p>
+
+<h2>The Full Frontend Architecture</h2>
+
+<div class="arch">
+  <div class="arch-title">Frontend request path — app.finapp.com</div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box">
+      <div class="bname">User browser — https://app.finapp.com</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box orange">
+      <div class="bname">Route 53 — DNS</div>
+      <div class="bsub">Alias record: app.finapp.com → d1234abcd.cloudfront.net</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box orange">
+      <div class="bname">CloudFront Distribution</div>
+      <div class="bsub">
+        TLS certificate from ACM (us-east-1) · WAF attached · 400+ edge locations<br>
+        Redirect HTTP → HTTPS · Compress responses (gzip/brotli)
+      </div>
+    </div>
+  </div>
+
+  <div class="arch-indent">
+    <table class="behavior-table">
+      <thead><tr><th>Path pattern</th><th>Origin</th><th>Cache</th></tr></thead>
+      <tbody>
+        <tr><td>/api/*</td><td>ALB (your ECS backend)</td><td>No cache (dynamic)</td></tr>
+        <tr><td>/assets/*</td><td>S3 bucket</td><td>1 year (content-hashed filenames)</td></tr>
+        <tr><td>/*  (default)</td><td>S3 bucket</td><td>5 min (index.html)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="arch-row" style="margin-top:0.6rem">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box green">
+      <div class="bname">S3 Bucket — finapp-frontend</div>
+      <div class="bsub">
+        NOT public · Block Public Access: all enabled<br>
+        OAC policy: allows GetObject from this CloudFront distribution only<br>
+        Contents: index.html · assets/ · favicon.ico
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="callout warn">
+  <strong>Single-domain trick: one CloudFront for both frontend and API</strong>
+  The path-based routing above lets you serve <code>app.finapp.com</code> (frontend) and <code>app.finapp.com/api/*</code> (backend) from the same domain. This avoids CORS entirely — your React app calls <code>/api/trades</code> not <code>api.finapp.com/trades</code>. The same CloudFront distribution routes each path to the right origin.
+</div>
+
+<h2>Step-by-Step Setup</h2>
+
+<div class="steps">
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Create the S3 bucket — with public access fully blocked</strong>
+      <p>The bucket is <em>not</em> a public website. CloudFront reads it privately using Origin Access Control. Block all public access settings — this is the correct modern pattern.</p>
+      <pre><span class="cmt"># Bucket name matches your app; region matches your ECS/RDS region</span>
+Bucket name:         finapp-frontend
+Block public access: ALL FOUR checkboxes enabled
+Versioning:          optional (useful for rollbacks)
+Encryption:          SSE-S3 (default) is fine for a public SPA</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Request a TLS certificate in ACM — in us-east-1</strong>
+      <p>This is the single most common gotcha for Azure users moving to AWS. CloudFront is a global service and it only reads ACM certificates from the <code>us-east-1</code> region, regardless of where your other resources live. If your app is in <code>us-west-2</code>, your ACM cert for CloudFront must still be in <code>us-east-1</code>.</p>
+      <pre>Region:          <span class="str">us-east-1</span>  <span class="cmt">← mandatory, even if your app is elsewhere</span>
+Domain names:    app.finapp.com
+                 *.finapp.com   <span class="cmt">(wildcard covers all subdomains)</span>
+Validation:      DNS validation <span class="cmt">(ACM gives you a CNAME to add to Route 53)</span>
+
+ACM auto-renews the cert — you never touch it again after validation.</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Create the CloudFront distribution</strong>
+      <p>Key settings that matter:</p>
+      <pre><span class="key">Origin</span>:                S3 bucket (not the "website endpoint" URL)
+<span class="key">Origin Access Control</span>:  Create new OAC → CloudFront signs requests to S3
+<span class="key">Viewer protocol</span>:       Redirect HTTP to HTTPS
+<span class="key">Allowed HTTP methods</span>:  GET, HEAD (frontend is read-only)
+<span class="key">Cache policy</span>:          CachingOptimized for /assets/*
+                       CachingDisabled for /api/*
+<span class="key">Compress objects</span>:      Yes (gzip + brotli, free)
+<span class="key">Alternate domain</span>:      app.finapp.com
+<span class="key">SSL certificate</span>:       Select the ACM cert from us-east-1
+<span class="key">Security policy</span>:       TLSv1.2_2021 (drops old TLS 1.0/1.1)
+<span class="key">Default root object</span>:   index.html</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <strong>Attach the OAC bucket policy to S3</strong>
+      <p>After creating the CloudFront distribution with OAC, AWS shows you a bucket policy to copy. Apply it to the S3 bucket. This is the only permission that allows CloudFront to read the bucket — nothing else can.</p>
+      <pre><span class="dim">{</span>
+  <span class="key">"Statement"</span>: [<span class="dim">{</span>
+    <span class="key">"Effect"</span>:    <span class="str">"Allow"</span>,
+    <span class="key">"Principal"</span>: <span class="dim">{</span> <span class="key">"Service"</span>: <span class="str">"cloudfront.amazonaws.com"</span> <span class="dim">}</span>,
+    <span class="key">"Action"</span>:    <span class="str">"s3:GetObject"</span>,
+    <span class="key">"Resource"</span>:  <span class="str">"arn:aws:s3:::finapp-frontend/*"</span>,
+    <span class="key">"Condition"</span>: <span class="dim">{</span>
+      <span class="key">"StringEquals"</span>: <span class="dim">{</span>
+        <span class="key">"AWS:SourceArn"</span>: <span class="str">"arn:aws:cloudfront::123456789012:distribution/EDFDVBD6EXAMPLE"</span>
+      <span class="dim">}</span>
+    <span class="dim">}</span>
+  <span class="dim">}</span>]
+<span class="dim">}</span>
+<span class="cmt">// The Condition locks this to YOUR specific distribution — not all CloudFront</span></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <strong>Create Route 53 Alias record</strong>
+      <p>Alias records are AWS-specific — they resolve to a CloudFront distribution without a CNAME (which means they work at the apex domain, e.g. <code>finapp.com</code> as well as <code>app.finapp.com</code>).</p>
+      <pre>Record type: A (Alias)
+Name:        app.finapp.com
+Alias to:    CloudFront distribution → d1234abcd.cloudfront.net</pre>
+    </div>
+  </div>
+
+</div>
+
+<h2>The SPA Deep-Link Problem — and the Fix</h2>
+
+<p>This trips up almost every team on their first CloudFront SPA deployment. React Router, Vue Router, and similar libraries handle navigation client-side — routes like <code>/dashboard</code> or <code>/trades/123</code> exist only in the browser, not as real files in S3.</p>
+
+<p>When a user pastes <code>https://app.finapp.com/dashboard</code> directly into a new tab, CloudFront asks S3 for <code>/dashboard</code>. S3 returns a <strong>404</strong> (no such file). The user sees an error page instead of your app.</p>
+
+<p><strong>Fix: CloudFront Custom Error Response</strong></p>
+
+<pre>Error code:        403 and 404
+Response page:     /index.html
+Response code:     200
+
+<span class="cmt">Both 403 and 404 — S3 returns 403 (not 404) when OAC is used and the file doesn't exist.</span>
+<span class="cmt">Returning 200 with index.html lets React Router take over and render the right component.</span></pre>
+
+<div class="callout info">
+  <strong>Azure analogy: Azure Static Web Apps handles this automatically</strong>
+  Azure Static Web Apps has built-in SPA routing support — you define routes in a <code>staticwebapp.config.json</code>. CloudFront requires the custom error response workaround above. It is a two-minute fix once you know about it, but it is invisible until a user tries to share a deep link.
+</div>
+
+<h2>Deploying a New Frontend Version</h2>
+
+<p>CloudFront caches content at its 400+ edge locations. After you upload new files to S3, users will continue to see the cached old version until the cache expires — or until you invalidate it.</p>
+
+<div class="flow">
+  <div class="ftitle">Complete deploy sequence</div>
+<span class="cmt"># 1. Build your SPA</span>
+npm run build
+  <span class="arrow">→</span> dist/index.html
+  <span class="arrow">→</span> dist/assets/main.a3f8b2c.js   <span class="dim"># content-hashed filename</span>
+  <span class="arrow">→</span> dist/assets/style.9d4e1f2.css
+
+<span class="cmt"># 2. Upload to S3 (sync — only changed files)</span>
+aws s3 sync dist/ s3://finapp-frontend/ --delete
+
+<span class="cmt"># 3. Invalidate CloudFront cache (only index.html needs it)</span>
+aws cloudfront create-invalidation \
+  --distribution-id EDFDVBD6EXAMPLE \
+  --paths "/index.html"
+
+<span class="dim"># Assets (JS/CSS) have content-hashed filenames — old cache is harmless</span>
+<span class="dim"># because the new index.html points to the new hash. Only index.html needs</span>
+<span class="dim"># invalidation. Invalidating /* costs more and is rarely needed.</span>
+</div>
+
+<div class="callout finance">
+  <strong>Content hashing = safe long-term caching</strong>
+  Modern build tools (Vite, webpack) rename JS and CSS files with a hash of their content: <code>main.a3f8b2c.js</code>. If the file changes, the hash changes, so the filename changes — CloudFront cannot serve a stale cached version of an asset because the new <code>index.html</code> references a filename that was never cached. Set a 1-year cache on <code>/assets/*</code> and a short cache (5 min) on <code>/index.html</code>.
+</div>
+
+<h2>Security Headers via CloudFront Response Headers Policy</h2>
+
+<p>For a financial app, you should add security headers on every CloudFront response. AWS provides a managed policy you can attach — no Lambda needed:</p>
+
+<table>
+  <thead><tr><th>Header</th><th>Value</th><th>Protects against</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>Strict-Transport-Security</code></td>
+      <td><code>max-age=31536000; includeSubDomains</code></td>
+      <td>Protocol downgrade / MITM (forces HTTPS for 1 year)</td>
+    </tr>
+    <tr>
+      <td><code>X-Content-Type-Options</code></td>
+      <td><code>nosniff</code></td>
+      <td>MIME type sniffing attacks</td>
+    </tr>
+    <tr>
+      <td><code>X-Frame-Options</code></td>
+      <td><code>DENY</code></td>
+      <td>Clickjacking (embedding your app in an iframe)</td>
+    </tr>
+    <tr>
+      <td><code>Content-Security-Policy</code></td>
+      <td>Custom per app</td>
+      <td>XSS — restricts which scripts, styles, and origins are trusted</td>
+    </tr>
+    <tr>
+      <td><code>Referrer-Policy</code></td>
+      <td><code>strict-origin-when-cross-origin</code></td>
+      <td>Leaking URL parameters (e.g. trade IDs) in Referer headers</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Attach the AWS-managed <code>SecurityHeadersPolicy</code> to your CloudFront distribution's default cache behavior. For Content-Security-Policy, create a custom response headers policy with your specific allowed origins.</p>
+
+<h2>Azure → AWS Frontend Map</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>Azure</th><th>AWS</th><th>Key difference</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Static file storage</td>
+      <td class="azure">Azure Blob Storage (static website)</td>
+      <td class="aws">S3 bucket</td>
+      <td class="note">Both store static files. On AWS, keep the bucket private and serve via CloudFront — do not use S3's static website endpoint.</td>
+    </tr>
+    <tr>
+      <td>CDN / global delivery</td>
+      <td class="azure">Azure CDN / Azure Front Door</td>
+      <td class="aws">CloudFront</td>
+      <td class="note">CloudFront has 400+ edge locations. Integrates natively with S3 via OAC. Front Door is more similar to CloudFront in features.</td>
+    </tr>
+    <tr>
+      <td>TLS certificates</td>
+      <td class="azure">App Service Certificate / Azure-managed</td>
+      <td class="aws">ACM (AWS Certificate Manager)</td>
+      <td class="note">ACM certs are free and auto-renew. Must be provisioned in us-east-1 for CloudFront — regardless of where your app runs.</td>
+    </tr>
+    <tr>
+      <td>SPA hosting (managed)</td>
+      <td class="azure">Azure Static Web Apps</td>
+      <td class="aws">No direct equivalent</td>
+      <td class="note">You compose S3 + CloudFront manually. AWS Amplify Hosting wraps this with more automation if you want a closer Azure Static Web Apps experience.</td>
+    </tr>
+    <tr>
+      <td>DNS</td>
+      <td class="azure">Azure DNS</td>
+      <td class="aws">Route 53</td>
+      <td class="note">Route 53 Alias records work at the apex domain (no CNAME limitation). Azure DNS uses ALIAS records similarly.</td>
+    </tr>
+    <tr>
+      <td>Private CDN-to-storage access</td>
+      <td class="azure">Private Endpoint on Blob Storage</td>
+      <td class="aws">Origin Access Control (OAC)</td>
+      <td class="note">OAC signs CloudFront requests to S3 so the bucket can stay fully private. The modern replacement for the older OAI (Origin Access Identity).</td>
+    </tr>
+    <tr>
+      <td>WAF</td>
+      <td class="azure">Azure WAF on Front Door</td>
+      <td class="aws">AWS WAF on CloudFront</td>
+      <td class="note">Both filter OWASP Top 10 at the edge. AWS WAF uses managed rule groups you subscribe to; Azure WAF uses built-in rulesets.</td>
+    </tr>
+    <tr>
+      <td>Cache invalidation</td>
+      <td class="azure">CDN purge</td>
+      <td class="aws">CloudFront Invalidation</td>
+      <td class="note">First 1,000 invalidation paths/month are free. Azure CDN purge is also free. Both propagate globally in ~1–2 minutes.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Production Checklist</h2>
+
+<ul class="checklist">
+  <li>S3 bucket: Block Public Access all enabled — no public bucket policy</li>
+  <li>OAC created and bucket policy restricts access to this specific CloudFront distribution only</li>
+  <li>ACM certificate requested in <strong>us-east-1</strong> (even if app is in another region)</li>
+  <li>CloudFront: Viewer Protocol Policy = Redirect HTTP to HTTPS</li>
+  <li>CloudFront: TLS Security Policy = TLSv1.2_2021 (no TLS 1.0 or 1.1)</li>
+  <li>Custom Error Response: 403 + 404 → /index.html with 200 status (SPA deep links)</li>
+  <li>Security headers response policy attached (HSTS, X-Frame-Options, CSP)</li>
+  <li>Cache settings: /assets/* = 1 year, /index.html = 5 minutes</li>
+  <li>Deploy pipeline invalidates only <code>/index.html</code> (not <code>/*</code>)</li>
+  <li>Route 53 Alias record points to CloudFront (not a CNAME)</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on S3 + CloudFront.</p>
+
+  <!-- Q1 -->
+  <div class="question" id="q1">
+    <p>1. Your app runs in us-west-2. Where must you create the ACM certificate for your CloudFront distribution?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> us-west-2, to match your application region</label>
+      <label><input type="radio" name="q1" value="b"> us-east-1, because CloudFront only reads ACM certificates from that region</label>
+      <label><input type="radio" name="q1" value="c"> Any region — CloudFront replicates certificates automatically</label>
+      <label><input type="radio" name="q1" value="d"> The region nearest to your largest user base</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. CloudFront is a global service and it only reads ACM certificates from us-east-1 — always, regardless of where the rest of your infrastructure lives. This is one of the most common first-time AWS mistakes.','Not quite. CloudFront only reads ACM certs from us-east-1. This is a hard requirement, not a recommendation. Your app can run in any region; the cert for CloudFront must be in us-east-1.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <!-- Q2 -->
+  <div class="question" id="q2">
+    <p>2. A user emails support: "I bookmarked https://app.finapp.com/portfolio but now it shows an error page." What is the cause and fix?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> The S3 bucket is missing a /portfolio folder — create it and add an index.html</label>
+      <label><input type="radio" name="q2" value="b"> CloudFront returns S3's 403/404 for deep links; fix by adding a Custom Error Response: 403+404 → /index.html with status 200</label>
+      <label><input type="radio" name="q2" value="c"> The Route 53 Alias record only routes traffic to /index.html; add a second record for /portfolio</label>
+      <label><input type="radio" name="q2" value="d"> The ACM certificate does not cover the /portfolio path; add it as a Subject Alternative Name</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. /portfolio is a client-side React Router route — no such file exists in S3. When CloudFront asks S3 for it, S3 returns 403/404. The fix is a CloudFront Custom Error Response that returns /index.html (200) for all 403 and 404 errors, letting React Router handle the route.','Not quite. React Router routes exist only in the browser — /portfolio is not a real file in S3. The fix is a CloudFront Custom Error Response redirecting 403/404 errors to /index.html with a 200 status, so React Router can parse the URL and render the right page.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question" id="q3">
+    <p>3. You deploy a new version of your SPA to S3. Users still see the old UI five minutes later. What should you do?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Delete and re-create the CloudFront distribution</label>
+      <label><input type="radio" name="q3" value="b"> Make the S3 bucket public so CloudFront fetches a fresh copy each time</label>
+      <label><input type="radio" name="q3" value="c"> Run a CloudFront cache invalidation on /index.html</label>
+      <label><input type="radio" name="q3" value="d"> Change the S3 bucket name to force CloudFront to use a new origin</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','c','Correct. CloudFront cached the old index.html at edge locations. An invalidation on /index.html clears that cache. JS and CSS assets do not need invalidation because their content-hashed filenames change with each build.','Not quite. CloudFront caches content at edge locations. The fix is a cache invalidation — specifically on /index.html. JS and CSS assets are safe because content hashing gives them new filenames on every build, so the old cache entries are simply never requested again.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question" id="q4">
+    <p>4. What does Origin Access Control (OAC) allow you to do?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Allow users to access the S3 bucket directly with their AWS credentials</label>
+      <label><input type="radio" name="q4" value="b"> Keep the S3 bucket fully private while allowing only your specific CloudFront distribution to read from it</label>
+      <label><input type="radio" name="q4" value="c"> Cache S3 objects at CloudFront edge locations for faster delivery</label>
+      <label><input type="radio" name="q4" value="d"> Encrypt S3 objects at rest using the CloudFront encryption key</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. OAC signs CloudFront\'s requests to S3 with a credential that only that specific distribution has. The bucket policy allows GetObject only from that distribution\'s ARN — so the bucket stays fully private and no one can bypass CloudFront to hit S3 directly.','Not quite. OAC is an access control mechanism. It signs CloudFront requests to S3, allowing the bucket to stay private (no public access) while still being readable by that specific CloudFront distribution. Caching and encryption are separate features.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  Frontend stack: <strong>S3</strong> (private bucket, OAC policy) → <strong>CloudFront</strong> (TLS via ACM cert in us-east-1, path routing for /api/* to ALB, custom error response for SPA deep links, security headers) → <strong>Route 53 Alias</strong> (apex-domain capable). Deploy = <code>aws s3 sync</code> + invalidate <code>/index.html</code>. The S3 bucket is never public — CloudFront is the only door in.
+</div>
+
+<div class="lesson-nav">
+  <a href="0001-aws-architecture-map.html">← L1</a> ·
+  <a href="0002-vpc-networking.html">← L2: VPC</a> ·
+  <a href="0003-iam.html">← L3: IAM</a> ·
+  <a href="0004-ecs-fargate.html">← L4: ECS</a> ·
+  <a href="0005-rds.html">← L5: RDS</a><br><br>
+  <strong>Next:</strong> <em>Lesson 7 — Putting it All Together: the complete architecture, how every service connects, and what to build first</em><br><br>
+  <strong>Ask your teacher anything:</strong> WAF rule configuration, CloudFront Functions vs Lambda@Edge, Amplify Hosting as an alternative, or how to set up CI/CD for automatic S3 deploys — ask in the terminal.
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html" target="_blank">Amazon CloudFront Developer Guide</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html" target="_blank">Restricting S3 Access with OAC</a> ·
+  <a href="https://docs.aws.amazon.com/acm/latest/userguide/acm-overview.html" target="_blank">AWS Certificate Manager</a> ·
+  <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-cloudfront-distribution.html" target="_blank">Route 53 + CloudFront</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
