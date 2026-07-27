@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 13 — Amazon S3: Object Storage Deep Dive</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .key { color: #9cdcfe; }
+  .str { color: #ce9178; }
+  .num { color: #b5cea8; }
+  .cmt { color: #6a9955; }
+  .dim { color: #888; }
+  .kw  { color: #569cd6; }
+
+  /* Architecture diagram */
+  .arch {
+    border: 2px solid var(--aws-orange);
+    border-radius: 8px;
+    padding: 1.3rem;
+    margin: 1.5rem 0;
+    background: #fffdf8;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+  }
+
+  .arch-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: bold;
+    color: var(--aws-orange);
+    margin-bottom: 1rem;
+  }
+
+  .arch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .arch-arrow {
+    color: var(--aws-orange);
+    font-size: 1rem;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .arch-box {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    background: white;
+  }
+
+  .arch-box.orange { border-color: var(--aws-orange); background: #fffdf5; }
+  .arch-box.green  { border-color: var(--green);      background: #f5fbf5; }
+  .arch-box.purple { border-color: var(--purple);     background: #fdf8ff; }
+
+  .arch-box .bname { font-weight: bold; color: var(--ink); font-size: 0.82rem; }
+  .arch-box .bsub  { color: var(--muted); font-size: 0.72rem; line-height: 1.5; margin-top: 0.1rem; }
+
+  .arch-indent { padding-left: 2rem; }
+
+  .behavior-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+  .behavior-table th {
+    background: #333;
+    color: white;
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .behavior-table td {
+    padding: 0.3rem 0.6rem;
+    border-bottom: 1px solid #eee;
+  }
+  .behavior-table tr:nth-child(even) td { background: #f8f8f8; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  /* Flow */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .flow .ftitle {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .arrow { color: var(--aws-orange); }
+
+  /* Steps */
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: 0 0.8rem;
+    margin-bottom: 1.2rem;
+    align-items: start;
+  }
+  .step-num {
+    width: 2rem;
+    height: 2rem;
+    background: var(--ink);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Checklist */
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li {
+    padding: 0.3rem 0 0.3rem 1.6rem;
+    position: relative;
+    font-size: 0.93rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--muted); }
+
+  /* Quiz */
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 13 · Storage</div>
+  <h1>Amazon S3: Object Storage Deep Dive</h1>
+  <div class="subtitle">Beyond frontend hosting — buckets, storage classes, and S3 as your app's file store for uploads, backups, and data</div>
+</header>
+
+<p>Lesson 6 covered S3 in one narrow role: parking a built SPA behind CloudFront. S3 is much bigger than that — it's the general-purpose <strong>object store</strong> almost every AWS service quietly stands on, and it's very likely where your app will keep user uploads, generated PDFs, database backups, and log archives.</p>
+
+<p>This lesson treats S3 on its own terms: what an object actually is, how storage classes trade cost for retrieval speed, and the pattern you'll reach for constantly — letting a browser upload a file <em>directly</em> to S3 without routing bytes through your backend.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  S3 is Azure's <strong>Blob Storage</strong>. A bucket ≈ a storage account + container. An object ≈ a blob. A pre-signed URL ≈ a <strong>SAS token</strong>. If you've ever generated a SAS URL for a browser upload, you already understand the S3 pattern in this lesson — the mechanics map almost one-to-one.
+</div>
+
+<h2>Anatomy of a Bucket</h2>
+
+<p>S3 has no real directory tree underneath it. A bucket is a flat namespace of key → object pairs; the console draws slashes in keys as folders purely for your convenience.</p>
+
+<table>
+  <thead><tr><th>Concept</th><th class="azure">Azure Blob Storage</th><th class="aws">Amazon S3</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Top-level container</td>
+      <td class="azure">Storage account → container</td>
+      <td class="aws">Bucket</td>
+      <td class="note">S3 bucket names are globally unique across every AWS account, not just yours.</td>
+    </tr>
+    <tr>
+      <td>The file itself</td>
+      <td class="azure">Blob</td>
+      <td class="aws">Object</td>
+      <td class="note">Max object size: 5 TB. Anything over 100 MB should use multipart upload.</td>
+    </tr>
+    <tr>
+      <td>File identifier</td>
+      <td class="azure">Blob name</td>
+      <td class="aws">Key</td>
+      <td class="note"><code>uploads/u883/photo.jpg</code> — one flat string, slashes and all.</td>
+    </tr>
+    <tr>
+      <td>Time-limited access URL</td>
+      <td class="azure">SAS token</td>
+      <td class="aws">Pre-signed URL</td>
+      <td class="note">Both are a URL with an embedded signature; no IAM credentials ever reach the browser.</td>
+    </tr>
+    <tr>
+      <td>Keep every revision</td>
+      <td class="azure">Blob versioning</td>
+      <td class="aws">S3 Versioning</td>
+      <td class="note">Off by default in both. Turn it on for anything you can't afford to lose to an overwrite.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Storage Classes: Hot to Cold</h2>
+
+<p>Every class trades <strong>retrieval speed</strong> for <strong>price</strong> — same shape as Azure's Hot / Cool / Archive tiers, just with more steps.</p>
+
+<table>
+  <thead><tr><th>S3 class</th><th class="azure">Closest Azure tier</th><th>Retrieval</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Standard</strong></td>
+      <td class="azure">Hot</td>
+      <td>Milliseconds</td>
+      <td>Actively-served files: SPA assets, live app uploads, thumbnails.</td>
+    </tr>
+    <tr>
+      <td><strong>Intelligent-Tiering</strong></td>
+      <td class="azure">— (no direct equivalent)</td>
+      <td>Milliseconds</td>
+      <td>Unpredictable access patterns; AWS auto-moves objects between tiers for you.</td>
+    </tr>
+    <tr>
+      <td><strong>Standard-IA</strong></td>
+      <td class="azure">Cool</td>
+      <td>Milliseconds</td>
+      <td>Backups accessed monthly at most — cheaper storage, small per-GB retrieval fee.</td>
+    </tr>
+    <tr>
+      <td><strong>Glacier Instant Retrieval</strong></td>
+      <td class="azure">Cold</td>
+      <td>Milliseconds</td>
+      <td>Quarterly-access archives that still need instant reads — old invoices, statements.</td>
+    </tr>
+    <tr>
+      <td><strong>Glacier Flexible / Deep Archive</strong></td>
+      <td class="azure">Archive</td>
+      <td>Minutes → 12 hrs</td>
+      <td>Compliance retention you hope to never open. Cheapest storage AWS sells.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>You rarely pick a class by hand at write time — write a <strong>lifecycle rule</strong> once and let objects age from hot to cold automatically:</p>
+
+<pre><span class="cmt">// lifecycle.json — auto-archive backups, then expire</span>
+{
+  <span class="key">"Rules"</span>: [{
+    <span class="key">"ID"</span>: <span class="str">"archive-old-backups"</span>,
+    <span class="key">"Status"</span>: <span class="str">"Enabled"</span>,
+    <span class="key">"Filter"</span>: { <span class="key">"Prefix"</span>: <span class="str">"backups/"</span> },
+    <span class="key">"Transitions"</span>: [
+      { <span class="key">"Days"</span>: <span class="num">30</span>, <span class="key">"StorageClass"</span>: <span class="str">"STANDARD_IA"</span> },
+      { <span class="key">"Days"</span>: <span class="num">90</span>, <span class="key">"StorageClass"</span>: <span class="str">"GLACIER"</span> }
+    ],
+    <span class="key">"Expiration"</span>: { <span class="key">"Days"</span>: <span class="num">365</span> }
+  }]
+}</pre>
+
+<div class="callout finance">
+  <strong>Finance context</strong>
+  Regulatory retention (SEC 17a-4, SOX, etc.) often means "keep it, but you'll almost never read it." That's exactly what Glacier Deep Archive is for — pennies per GB per month for records you're legally obligated to hold, not to serve.
+</div>
+
+<h2>Use Case: The Direct-Upload Pattern</h2>
+
+<p>User uploads, generated PDFs, exported statements — anything binary your app produces or accepts. The standard pattern is a <strong>pre-signed URL</strong>: your backend issues a short-lived, scoped URL, and the browser uploads straight to S3. The file's bytes never pass through your server.</p>
+
+<div class="arch">
+  <div class="arch-title">Direct upload — browser to S3</div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box">
+      <div class="bname">Browser — "I want to upload statement.pdf"</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box orange">
+      <div class="bname">Your backend (ECS/Lambda)</div>
+      <div class="bsub">Checks auth, decides the S3 key, asks S3 SDK to mint a pre-signed PUT URL (expires in 5 min)</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box orange">
+      <div class="bname">S3 bucket (private)</div>
+      <div class="bsub">Browser PUTs the file bytes directly to the signed URL. Bucket policy never grants public access — the signature is the only key.</div>
+    </div>
+  </div>
+</div>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Backend mints the pre-signed URL</strong>
+      <p>The signature encodes bucket, key, method, content-type, and expiry — nothing more.</p>
+      <pre><span class="kw">import</span> { S3Client, PutObjectCommand } <span class="kw">from</span> <span class="str">"@aws-sdk/client-s3"</span>;
+<span class="kw">import</span> { getSignedUrl } <span class="kw">from</span> <span class="str">"@aws-sdk/s3-request-presigner"</span>;
+
+<span class="kw">const</span> s3 = <span class="kw">new</span> S3Client({ region: <span class="str">"us-east-1"</span> });
+
+<span class="kw">async function</span> getUploadUrl(userId, filename, contentType) {
+  <span class="kw">const</span> key = <span class="str">`uploads/${userId}/${crypto.randomUUID()}-${filename}`</span>;
+  <span class="kw">const</span> command = <span class="kw">new</span> PutObjectCommand({
+    Bucket: <span class="str">"my-app-blobs"</span>,
+    Key: key,
+    ContentType: contentType,
+  });
+  <span class="kw">return</span> { url: <span class="kw">await</span> getSignedUrl(s3, command, { expiresIn: <span class="num">300</span> }), key };
+}</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Browser PUTs directly to that URL</strong>
+      <pre><span class="kw">const</span> { url, key } = <span class="kw">await</span> fetch(<span class="str">"/api/upload-url"</span>, {
+  method: <span class="str">"POST"</span>,
+  body: JSON.stringify({ filename: file.name, contentType: file.type }),
+}).then(r => r.json());
+
+<span class="kw">await</span> fetch(url, {
+  method: <span class="str">"PUT"</span>,
+  headers: { <span class="str">"Content-Type"</span>: file.type },
+  body: file,
+});</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Allow the browser origin with CORS</strong>
+      <p>Because the browser talks to S3 directly, the bucket needs a CORS rule — the S3 equivalent of the CORS settings on an Azure Storage account.</p>
+      <pre>[
+  {
+    <span class="key">"AllowedOrigins"</span>: [<span class="str">"https://app.finapp.com"</span>],
+    <span class="key">"AllowedMethods"</span>: [<span class="str">"PUT"</span>, <span class="str">"GET"</span>],
+    <span class="key">"AllowedHeaders"</span>: [<span class="str">"*"</span>],
+    <span class="key">"ExposeHeaders"</span>: [<span class="str">"ETag"</span>],
+    <span class="key">"MaxAgeSeconds"</span>: <span class="num">3000</span>
+  }
+]</pre>
+    </div>
+  </div>
+</div>
+
+<p>Reading it back later works the same way — a pre-signed <code>GET</code> URL for private files (statements, KYC documents), or a plain CloudFront URL for public assets like avatars.</p>
+
+<h2>Other Places S3 Shows Up</h2>
+
+<table>
+  <thead><tr><th>Use case</th><th>Pattern</th></tr></thead>
+  <tbody>
+    <tr><td>Automated backups</td><td>Nightly RDS/pg_dump snapshot lands in S3; lifecycle rule ages it to IA, then Glacier, then deletes it — no manual cleanup.</td></tr>
+    <tr><td>Event-driven pipelines</td><td>An S3 <code>PutObject</code> event triggers a Lambda — resize an image, scan an upload for malware, kick off statement generation.</td></tr>
+    <tr><td>Log & audit storage</td><td>CloudTrail (Lesson 3), ALB access logs, and CloudWatch log exports stream to S3 — cheap, durable, queryable later with Athena.</td></tr>
+    <tr><td>Data lake</td><td>Raw exports land in S3; Athena or Redshift Spectrum query them directly with SQL — no load step, no separate database.</td></tr>
+    <tr><td>Deploy artifacts</td><td>Lambda zip files, Terraform state (Lesson 9, with DynamoDB locking) — S3 is the plumbing under most AWS tooling.</td></tr>
+  </tbody>
+</table>
+
+<h2>Production Checklist</h2>
+
+<ul class="checklist">
+  <li>Block Public Access enabled on every bucket by default — opt in per-bucket only when truly needed (see Lesson 6 for the CloudFront/OAC pattern)</li>
+  <li>Access granted via IAM + bucket policy, never legacy ACLs</li>
+  <li>Pre-signed URL expiry kept short (minutes, not hours) — mint a new one per upload, don't cache them</li>
+  <li>CORS rule scoped to your app's exact origin, not <code>"*"</code>, for any bucket accepting browser uploads</li>
+  <li>Versioning on for anything you can't afford to lose to an overwrite or accidental delete</li>
+  <li>Server-side encryption (SSE-S3 or SSE-KMS) enabled — SSE-KMS if compliance requires customer-managed keys</li>
+  <li>Lifecycle rules doing the hot→cold migration, not a cron job you have to remember</li>
+  <li>Object Lock (WORM) considered for anything under regulatory retention</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on S3 as general-purpose object storage.</p>
+
+  <div class="question" id="q1">
+    <p>1. In Azure terms, what does an S3 pre-signed URL correspond to?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A Shared Access Signature (SAS) token</label>
+      <label><input type="radio" name="q1" value="b"> A Storage Account connection string</label>
+      <label><input type="radio" name="q1" value="c"> An Azure AD access token</label>
+      <label><input type="radio" name="q1" value="d"> A CDN purge request</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','a','Correct. Both are a URL with an embedded, time-limited signature that grants scoped access to one object/blob without ever handing out account-level credentials.','Not quite. The closest Azure equivalent is a SAS token — a signed URL with embedded, time-limited permissions for one blob, issued by your backend rather than exposing real credentials to the browser.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. A user uploads a 40 MB PDF and it arrives at your Node.js backend before being forwarded to S3, adding several seconds of latency and load on your server. What's the fix?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Increase the ECS task's CPU allocation</label>
+      <label><input type="radio" name="q2" value="b"> Have the backend mint a pre-signed PUT URL and have the browser upload directly to S3</label>
+      <label><input type="radio" name="q2" value="c"> Compress the file before sending it to the backend</label>
+      <label><input type="radio" name="q2" value="d"> Switch the bucket to Intelligent-Tiering</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. Routing file bytes through your backend wastes compute and adds latency for no benefit. The direct-upload pattern — backend issues a pre-signed URL, browser PUTs straight to S3 — removes your server from the data path entirely.','Not quite. The problem is architectural: file bytes are passing through your backend unnecessarily. The fix is the pre-signed URL pattern from this lesson — the browser talks to S3 directly, and your backend only ever handles a small JSON request to mint the signed URL.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Compliance requires you to keep transaction statements for 7 years, but no one will read most of them after the first 90 days. What's the most cost-efficient setup?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Store everything in S3 Standard for the full 7 years</label>
+      <label><input type="radio" name="q3" value="b"> Delete files after 90 days and keep only a database record</label>
+      <label><input type="radio" name="q3" value="c"> A lifecycle rule transitioning Standard → Standard-IA → Glacier, with expiration at 7 years</label>
+      <label><input type="radio" name="q3" value="d"> Manually move files to Glacier once a quarter</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','c','Correct. This is exactly what lifecycle rules automate: objects age from hot (Standard) to warm (IA) to cold (Glacier) storage on a schedule you set once, with an expiration date matching your retention requirement — no manual intervention, no compliance gap.','Not quite. Compliance requires you actually keep the files, so deleting them is out. The efficient answer is a lifecycle rule that automatically transitions objects through cheaper storage classes as they age, expiring them only once the 7-year retention window closes.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Why should a CORS rule on an upload bucket specify your exact app origin instead of <code>"*"</code>?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> <code>"*"</code> is slower because CloudFront can't cache wildcard origins</label>
+      <label><input type="radio" name="q4" value="b"> <code>"*"</code> would let any website embed a form that uploads files to your bucket using a leaked pre-signed URL</label>
+      <label><input type="radio" name="q4" value="c"> AWS bills more for wildcard CORS rules</label>
+      <label><input type="radio" name="q4" value="d"> <code>"*"</code> disables server-side encryption</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. CORS controls which web origins a browser will let make the request at all. Scoping it to your real domain means even a leaked or replayed pre-signed URL can only be used from a page your users would actually be on — one more layer, on top of the URL''s own expiry.','Not quite. CORS is a browser-enforced allowlist of origins. Leaving it wildcarded means any site on the internet could embed a form pointed at your pre-signed URL. Scoping it to your app''s real domain closes that off.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  S3 is Azure Blob Storage's counterpart: buckets hold objects addressed by flat keys, storage classes trade retrieval speed for price (Standard → IA → Glacier, same shape as Hot → Cool → Archive), and the workhorse pattern for user-facing uploads is a short-lived pre-signed URL — the SAS-token equivalent — that lets the browser talk to S3 directly. Lesson 6 showed S3 serving your frontend; this lesson is S3 serving your data.
+</div>
+
+<div class="lesson-nav">
+  <a href="0006-frontend-s3-cloudfront.html">← L6: S3 + CloudFront (frontend)</a> ·
+  <a href="0012-cicd.html">← L12: CI/CD</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Topics you can explore next: S3 Object Lock (WORM) for regulatory retention · multipart upload for large files · S3 Batch Operations · Athena queries over an S3 data lake<br><br>
+  <strong>Ask your teacher anything.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html" target="_blank">Amazon S3 User Guide</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html" target="_blank">S3 Storage Classes</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html" target="_blank">Uploading Objects with Pre-Signed URLs</a> ·
+  <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/cors.html" target="_blank">S3 CORS Configuration</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
