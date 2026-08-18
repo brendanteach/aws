@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 15 — AgentCore, RAG Internals, and Multi-Agent Systems</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; }
+
+  .arch { border: 2px solid var(--aws-orange); border-radius: 8px; padding: 1.3rem; margin: 1.5rem 0; background: #fffdf8; font-family: sans-serif; font-size: 0.8rem; }
+  .arch-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: bold; color: var(--aws-orange); margin-bottom: 1rem; }
+  .arch-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.4rem; }
+  .arch-arrow { color: var(--aws-orange); font-size: 1rem; margin-top: 0.2rem; flex-shrink: 0; }
+  .arch-box { flex: 1; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem 0.8rem; background: white; }
+  .arch-box.orange { border-color: var(--aws-orange); background: #fffdf5; }
+  .arch-box.green  { border-color: var(--green);      background: #f5fbf5; }
+  .arch-box.purple { border-color: var(--purple);     background: #fdf8ff; }
+  .arch-box.blue   { border-color: var(--azure-blue); background: #f5f9fd; }
+  .arch-box .bname { font-weight: bold; color: var(--ink); font-size: 0.82rem; }
+  .arch-box .bsub  { color: var(--muted); font-size: 0.72rem; line-height: 1.5; margin-top: 0.1rem; }
+  .arch-cols { display: flex; gap: 0.6rem; margin: 0.2rem 0 0.4rem; }
+  .arch-cols .arch-box { font-size: 0.76rem; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 15 · Generative AI</div>
+  <h1>AgentCore, RAG Internals, and Multi-Agent Systems</h1>
+  <div class="subtitle">Three questions, one shape: what AgentCore is, how Knowledge Bases actually perform retrieval, and how to wire multiple agents together</div>
+</header>
+
+<p>Lesson 14 established the base call: your backend invokes a foundation model through Bedrock. This lesson goes one level deeper into three things you asked about directly — <strong>AgentCore</strong> (the platform for building real agents), the mechanics <em>inside</em> a Knowledge Base (RAG), and how to compose <strong>multiple</strong> agents into one system.</p>
+
+<div class="callout warn">
+  <strong>Naming note before we start</strong>
+  AWS's original "Amazon Bedrock Agents" (the console feature with action groups and a built-in orchestrator) is now called <strong>Bedrock Agents Classic</strong> and is closed to new customers — existing users keep it, but AWS's own docs point new builds at AgentCore instead. Everything below reflects the current path.
+</div>
+
+<h2>What AgentCore Is</h2>
+
+<p>AgentCore is not one service — it's a set of independent, composable services for running agents in production. The key design choice: it's <strong>framework- and model-agnostic</strong>. You write your agent with Strands Agents SDK, LangGraph, CrewAI, or plain code, using Claude, GPT, Gemini, or any model — AgentCore supplies the infrastructure around it: secure execution, tool access, memory, and observability.</p>
+
+<table>
+  <thead><tr><th>Component</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Runtime</strong></td><td>Serverless, session-isolated execution for your agent code — each conversation runs in its own microVM, with fast cold starts and support for long-running async agents.</td></tr>
+    <tr><td><strong>Gateway</strong></td><td>Wraps your existing Lambda functions and APIs as MCP (Model Context Protocol) tools, so any agent can call them without custom integration code.</td></tr>
+    <tr><td><strong>Identity</strong></td><td>Authenticates agents and the users behind them, using your existing IdP (Cognito, Okta, Entra ID) — no separate identity system to build.</td></tr>
+    <tr><td><strong>Memory</strong></td><td>Short-term memory for one conversation, long-term memory that persists across sessions, optionally shared across multiple agents.</td></tr>
+    <tr><td><strong>Observability</strong></td><td>OpenTelemetry traces of every step an agent takes — which tool it called, what it retrieved, what it answered — viewable in CloudWatch.</td></tr>
+    <tr><td>Code Interpreter / Browser</td><td>Sandboxed tools an agent can call to run code or navigate a website, without you hosting either.</td></tr>
+  </tbody>
+</table>
+
+<div class="arch">
+  <div class="arch-title">Where AgentCore sits relative to your app</div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">Your agent code (Strands / LangGraph / your own) — the reasoning loop and prompts</div></div></div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box orange"><div class="bname">AgentCore Runtime</div><div class="bsub">Runs it serverlessly, one isolated session per conversation</div></div></div>
+  <div class="arch-cols">
+    <div class="arch-box purple"><div class="bname">Gateway</div><div class="bsub">Your Lambdas/APIs as MCP tools</div></div>
+    <div class="arch-box green"><div class="bname">Memory</div><div class="bsub">Short + long-term context</div></div>
+    <div class="arch-box blue"><div class="bname">Identity</div><div class="bsub">Auth via your IdP</div></div>
+  </div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">Foundation model (Bedrock, or any provider) — does the actual reasoning per step</div></div></div>
+</div>
+
+<p>In short: Bedrock (Lesson 14) gets you a model call. AgentCore gets you a <em>production agent</em> — one that keeps state across turns, calls your internal tools safely, and is traceable when something goes wrong.</p>
+
+<h2>How Knowledge Bases (RAG) Actually Work</h2>
+
+<p>Lesson 14 introduced Knowledge Bases as "grounds answers in your S3 documents." Here's the mechanism underneath that.</p>
+
+<h3>Ingestion — happens once, and on every update</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Parse & chunk.</strong> Bedrock pulls documents from your S3 data source and splits them into smaller text chunks — small enough that each chunk is a coherent, retrievable unit.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Embed.</strong> Each chunk is passed through an embedding model, which turns the text into a vector — a list of numbers positioned so that semantically similar text ends up at nearby points in vector space.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Index.</strong> The vectors are written to a vector store — OpenSearch Serverless, S3 Vectors, Pinecone, or Redis. Bedrock keeps this index in sync automatically as your S3 documents change; you don't run a re-index job yourself.</p></div></div>
+</div>
+
+<h3>Query — happens on every user question</h3>
+<div class="flow">
+  <div class="ftitle">Retrieval + generation</div>
+  User question <span class="arrow">→</span> embed the question with the same embedding model <span class="arrow">→</span> similarity search in the vector store (nearest chunks) <span class="arrow">→</span> top-k chunks + original question <span class="arrow">→</span> foundation model <span class="arrow">→</span> answer grounded in the retrieved chunks
+</div>
+
+<p>Bedrock exposes this as two API shapes:</p>
+
+<table>
+  <thead><tr><th>API</th><th>Returns</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr><td><code>Retrieve</code></td><td>The raw matching chunks, no model call</td><td>You want to build a custom prompt yourself, or feed chunks into an agent's own reasoning loop</td></tr>
+    <tr><td><code>RetrieveAndGenerate</code></td><td>A finished answer, with source citations</td><td>You want the simple case — one call, grounded answer back</td></tr>
+  </tbody>
+</table>
+
+<div class="callout finance">
+  <strong>Finance context</strong>
+  Citations matter here as much as the answer. <code>RetrieveAndGenerate</code> returns which source chunks (and which S3 document) backed each part of the answer — the audit trail you need if a client or examiner asks "where did that number come from?"
+</div>
+
+<h2>Building a Multi-Agent System</h2>
+
+<p>There are two eras of Bedrock multi-agent design, and it matters which one you build on.</p>
+
+<table>
+  <thead><tr><th></th><th>Bedrock Agents Classic (multi-agent collaboration)</th><th>AgentCore-based (current)</th></tr></thead>
+  <tbody>
+    <tr><td>Status</td><td>Maintenance mode — closed to new customers</td><td>Actively developed, recommended path</td></tr>
+    <tr><td>Pattern</td><td>One <strong>supervisor</strong> agent, several <strong>collaborator</strong> agents, configured in the console</td><td>You write the orchestration in code (Strands, LangGraph), deploy each agent to AgentCore Runtime</td></tr>
+    <tr><td>Flexibility</td><td>Fixed hierarchical shape</td><td>Multiple patterns — pick per use case (below)</td></tr>
+  </tbody>
+</table>
+
+<p>The <em>concept</em> Bedrock Agents Classic pioneered is still the right mental model even on the new stack: give each agent a narrow, clearly-scoped job, and have something route between them. A Bedrock example is an online mortgage assistant — a supervisor that reads the question and hands it to an "existing mortgage" agent, a "new application" agent, or a "general Q&A" agent, each with only the tools and knowledge base it needs.</p>
+
+<p>On AgentCore, the Strands Agents SDK gives you three orchestration shapes to choose from:</p>
+
+<table>
+  <thead><tr><th>Pattern</th><th>Shape</th><th>Pick it for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Graph</strong></td><td>Each node is a full agent (own prompt, own tools); edges define dependencies between them</td><td>A fixed pipeline of specialists — e.g. "retrieve statement" → "analyze" → "draft response"</td></tr>
+    <tr><td><strong>Workflow</strong></td><td>A task pipeline, not full agents — lighter weight than Graph</td><td>Steps that don't each need independent reasoning, just sequencing</td></tr>
+    <tr><td><strong>Swarm</strong></td><td>Peer agents hand off to each other dynamically, no fixed supervisor</td><td>Open-ended problems where the right next specialist isn't known in advance</td></tr>
+  </tbody>
+</table>
+
+<div class="arch">
+  <div class="arch-title">Example: finance-app multi-agent (supervisor pattern on AgentCore)</div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">User question — "Why did my portfolio drop last week?"</div></div></div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box orange"><div class="bname">Supervisor agent (AgentCore Runtime)</div><div class="bsub">Classifies the question, routes to the right specialist</div></div></div>
+  <div class="arch-cols">
+    <div class="arch-box purple"><div class="bname">Portfolio agent</div><div class="bsub">KB: account holdings + market data tool</div></div>
+    <div class="arch-box green"><div class="bname">Statements agent</div><div class="bsub">KB: S3 client statements</div></div>
+    <div class="arch-box blue"><div class="bname">FAQ agent</div><div class="bsub">KB: policy docs</div></div>
+  </div>
+  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">Guardrails on every agent's output → response to user</div></div></div>
+</div>
+
+<p>Each specialist agent is scoped the same way you scoped IAM roles in Lesson 3 — its own Gateway tools, its own Knowledge Base, nothing broader. That containment is what keeps a multi-agent system auditable instead of a black box.</p>
+
+<h2>Production Checklist</h2>
+<ul class="checklist">
+  <li>Building anything new — start on AgentCore, not Bedrock Agents Classic (closed to new customers)</li>
+  <li>Each agent scoped to the minimum tools (via Gateway) and Knowledge Base it actually needs</li>
+  <li>Use <code>RetrieveAndGenerate</code> when you need citations back to the source document, not just an answer</li>
+  <li>Pick Graph for fixed pipelines, Swarm for open-ended routing — don't default to the most complex pattern</li>
+  <li>Observability (OTEL traces) turned on before production — multi-agent failures are hard to debug blind</li>
+  <li>Guardrails applied per-agent, not just once at the very end</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on AgentCore, RAG internals, and multi-agent design.</p>
+
+  <div class="question" id="q1">
+    <p>1. You're starting a new agent project on Bedrock today. Which should you build on?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Bedrock Agents Classic, since it has the simplest console setup</label>
+      <label><input type="radio" name="q1" value="b"> AgentCore, since Bedrock Agents Classic is closed to new customers</label>
+      <label><input type="radio" name="q1" value="c"> Either — they are two names for the same current service</label>
+      <label><input type="radio" name="q1" value="d"> Neither — multi-agent systems require SageMaker</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Bedrock Agents Classic is in maintenance mode and closed to new customers. AgentCore is the actively developed, framework-agnostic platform AWS points new builds toward.','Not quite. Bedrock Agents Classic is closed to new customers and in maintenance mode. New projects should build on AgentCore.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Put the Knowledge Base ingestion steps in order: (i) index in a vector store (ii) embed each chunk (iii) chunk the documents.</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> (iii) chunk → (ii) embed → (i) index</label>
+      <label><input type="radio" name="q2" value="b"> (ii) embed → (iii) chunk → (i) index</label>
+      <label><input type="radio" name="q2" value="c"> (i) index → (iii) chunk → (ii) embed</label>
+      <label><input type="radio" name="q2" value="d"> All three happen in a single simultaneous step</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','a','Correct. Documents are split into chunks first, each chunk is then converted to a vector by the embedding model, and only then written to the vector store for retrieval.','Not quite. The order is: chunk the raw documents, embed each chunk into a vector, then index those vectors in the vector store.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. You need an answer plus the exact source document each part of it came from, for audit purposes. Which Bedrock API should you call?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> <code>InvokeModel</code></label>
+      <label><input type="radio" name="q3" value="b"> <code>Retrieve</code></label>
+      <label><input type="radio" name="q3" value="c"> <code>RetrieveAndGenerate</code></label>
+      <label><input type="radio" name="q3" value="d"> <code>ApplyGuardrail</code></label>
+    </div>
+    <button class="check-btn" onclick="check('q3','c','Correct. RetrieveAndGenerate returns a finished, grounded answer along with citations back to the specific source chunks and documents it used — the audit trail a finance context needs.','Not quite. Retrieve alone returns only raw chunks with no generated answer, and InvokeModel/ApplyGuardrail don''t touch the Knowledge Base at all. RetrieveAndGenerate is the one that returns both the answer and its citations.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. You're building a system where the right next specialist agent genuinely can't be predicted in advance — agents need to hand off to each other dynamically. Which Strands orchestration pattern fits best?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Graph</label>
+      <label><input type="radio" name="q4" value="b"> Workflow</label>
+      <label><input type="radio" name="q4" value="c"> Swarm</label>
+      <label><input type="radio" name="q4" value="d"> Gateway</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','c','Correct. Swarm is the peer-to-peer pattern where agents hand off to each other dynamically with no fixed supervisor or predefined dependency graph — the right fit for open-ended routing.','Not quite. Graph and Workflow both assume a known, fixed structure ahead of time, and Gateway is a tool-connectivity service, not an orchestration pattern. Swarm is the pattern built for dynamic, unpredictable hand-offs between peer agents.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  AgentCore is the current, framework-agnostic platform for running production agents on AWS — Bedrock Agents Classic is legacy for new work. A Knowledge Base is chunk → embed → index at ingestion, and embed-query → similarity search → generate at query time, with <code>RetrieveAndGenerate</code> giving you citations for free. Multi-agent systems on AgentCore mean scoping each agent narrowly (its own tools, its own Knowledge Base) and picking Graph, Workflow, or Swarm to match how predictable your routing actually is.
+</div>
+
+<div class="lesson-nav">
+  <a href="0014-bedrock-genai.html">← L14: Amazon Bedrock (base architecture)</a> ·
+  <a href="0003-iam.html">← L3: IAM</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Topics you can explore next: AgentCore Identity deep dive (per-agent auth) · Guardrails configuration in depth · evaluating agent quality with AgentCore Evaluations<br><br>
+  <strong>Ask your teacher anything.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html" target="_blank">What is Amazon Bedrock AgentCore — AWS Docs</a> ·
+  <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/retrieval-augmented-generation-options/rag-fully-managed-bedrock.html" target="_blank">Knowledge Bases for Amazon Bedrock — AWS Prescriptive Guidance</a> ·
+  <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/agents-multi-agent-collaboration.html" target="_blank">Multi-Agent Collaboration — Amazon Bedrock Agents</a> ·
+  <a href="https://aws.amazon.com/blogs/machine-learning/market-surveillance-agent-with-langgraph-and-strands-on-agentcore/" target="_blank">Multi-Agent Orchestration on AgentCore — AWS ML Blog</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

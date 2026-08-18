@@ -17,5 +17,8 @@ To design and deploy a production-grade financial web application — with front
 
 ## Out of scope
 - AWS DevOps/CI-CD tooling (CodePipeline, CodeBuild) — unless it comes up naturally
-- Machine learning services (SageMaker etc.) — not the current goal
+- Custom ML model training/hosting (SageMaker etc.) — not the current goal
 - Cost optimization deep-dives — note costs in passing but don't go deep
+
+## Scope note (added 2026-08-17)
+Generative AI is now in scope, specifically **Amazon Bedrock**, to support adding an AI feature (chat assistant / document analysis / similar) to the financial web app. This is managed foundation-model inference (Bedrock), not custom model training (SageMaker remains out of scope). See [[0003-bedrock-genai-scope-added]].

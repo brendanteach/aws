@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 14 — Amazon Bedrock: Generative AI Architecture</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Georgia", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    background: #fafaf8;
+    padding: 0 1rem;
+  }
+
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .lesson-number {
+    font-family: monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+
+  code {
+    font-family: monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 5px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .key { color: #9cdcfe; }
+  .str { color: #ce9178; }
+  .num { color: #b5cea8; }
+  .cmt { color: #6a9955; }
+  .dim { color: #888; }
+  .kw  { color: #569cd6; }
+
+  /* Architecture diagram */
+  .arch {
+    border: 2px solid var(--aws-orange);
+    border-radius: 8px;
+    padding: 1.3rem;
+    margin: 1.5rem 0;
+    background: #fffdf8;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+  }
+
+  .arch-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: bold;
+    color: var(--aws-orange);
+    margin-bottom: 1rem;
+  }
+
+  .arch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .arch-arrow {
+    color: var(--aws-orange);
+    font-size: 1rem;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .arch-box {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    background: white;
+  }
+
+  .arch-box.orange { border-color: var(--aws-orange); background: #fffdf5; }
+  .arch-box.green  { border-color: var(--green);      background: #f5fbf5; }
+  .arch-box.purple { border-color: var(--purple);     background: #fdf8ff; }
+  .arch-box.blue   { border-color: var(--azure-blue); background: #f5f9fd; }
+
+  .arch-box .bname { font-weight: bold; color: var(--ink); font-size: 0.82rem; }
+  .arch-box .bsub  { color: var(--muted); font-size: 0.72rem; line-height: 1.5; margin-top: 0.1rem; }
+
+  .arch-indent { padding-left: 2rem; }
+
+  .arch-branch {
+    display: flex;
+    gap: 0.6rem;
+    margin: 0.2rem 0 0.4rem 1.6rem;
+  }
+  .arch-branch .arch-box { font-size: 0.76rem; }
+
+  .behavior-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+  .behavior-table th {
+    background: #333;
+    color: white;
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+    font-family: sans-serif;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .behavior-table td {
+    padding: 0.3rem 0.6rem;
+    border-bottom: 1px solid #eee;
+  }
+  .behavior-table tr:nth-child(even) td { background: #f8f8f8; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.93rem;
+  }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  /* Flow */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--aws-orange);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.2rem 0;
+    font-family: monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .flow .ftitle {
+    font-family: sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .arrow { color: var(--aws-orange); }
+
+  /* Steps */
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: 0 0.8rem;
+    margin-bottom: 1.2rem;
+    align-items: start;
+  }
+  .step-num {
+    width: 2rem;
+    height: 2rem;
+    background: var(--ink);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  /* Checklist */
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li {
+    padding: 0.3rem 0 0.3rem 1.6rem;
+    position: relative;
+    font-size: 0.93rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; color: var(--muted); }
+
+  /* Quiz */
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 14 · Generative AI</div>
+  <h1>Amazon Bedrock: Generative AI Architecture</h1>
+  <div class="subtitle">Adding an AI feature to your financial app — how Bedrock plugs into the three-tier architecture you already built</div>
+</header>
+
+<p>Everything so far — VPC, IAM, ECS/RDS, S3 — builds a conventional three-tier app. This lesson adds a new tier: a way for your backend to call a large language model without running any AI infrastructure yourself. <strong>Amazon Bedrock</strong> is AWS's managed access point to foundation models (Claude, Amazon Nova, Llama, and others) — you call an API, AWS runs the model.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  Bedrock is AWS's counterpart to <strong>Azure OpenAI Service</strong> (now part of Azure AI Foundry). Both are a managed API in front of foundation models, both bill per token, both sit behind your cloud's standard IAM and networking rather than requiring a public API key. The difference: Bedrock is model-agnostic by design — one API shape (the <strong>Converse API</strong>) works across Anthropic, Amazon, Meta, and other providers' models, so switching models is a config change, not a rewrite.
+</div>
+
+<h2>The Core Idea: Bedrock Is Just Another AWS Service Call</h2>
+
+<p>This is the single tangible win for this lesson: your ECS/Lambda backend calls Bedrock exactly the way it already calls S3 or RDS — over the AWS SDK, authenticated by the task's IAM role, no API key to manage or leak.</p>
+
+<div class="arch">
+  <div class="arch-title">Minimal Bedrock integration — one AI feature, three-tier app</div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box">
+      <div class="bname">Browser — user asks a question in the app UI</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box blue">
+      <div class="bname">CloudFront + S3 (Lesson 6) — serves the frontend</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box orange">
+      <div class="bname">Your backend — ECS Fargate task (Lesson 4) in a private subnet (Lesson 2)</div>
+      <div class="bsub">IAM task role (Lesson 3) grants only <code>bedrock:InvokeModel</code> on specific model ARNs — nothing broader</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box purple">
+      <div class="bname">Amazon Bedrock Runtime — bedrock-runtime.us-east-1.amazonaws.com</div>
+      <div class="bsub">Reached via a VPC interface endpoint (PrivateLink) — traffic never leaves the AWS network, no NAT gateway or public internet hop needed</div>
+    </div>
+  </div>
+
+  <div class="arch-row">
+    <div class="arch-arrow">↓</div>
+    <div class="arch-box green">
+      <div class="bname">Foundation model (e.g. Claude on Bedrock)</div>
+      <div class="bsub">AWS hosts and scales the model; you never manage GPUs or servers</div>
+    </div>
+  </div>
+</div>
+
+<p>That's the whole shape. Everything else in this lesson — Guardrails, Knowledge Bases, Agents — are optional layers you add <em>around</em> this one call as your use case grows.</p>
+
+<h2>Calling Bedrock From Your Backend</h2>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Scope the IAM role to specific models</strong>
+      <p>Same principle as Lesson 3: least privilege. Grant <code>InvokeModel</code> on the exact model ARNs you use, not <code>bedrock:*</code>.</p>
+      <pre>{
+  <span class="key">"Effect"</span>: <span class="str">"Allow"</span>,
+  <span class="key">"Action"</span>: [<span class="str">"bedrock:InvokeModel"</span>],
+  <span class="key">"Resource"</span>: [
+    <span class="str">"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-5-*"</span>
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Call the Converse API from your backend</strong>
+      <p>One shape works across model providers — swapping <code>modelId</code> is the only change needed to try a different model.</p>
+      <pre><span class="kw">import</span> { BedrockRuntimeClient, ConverseCommand } <span class="kw">from</span> <span class="str">"@aws-sdk/client-bedrock-runtime"</span>;
+
+<span class="kw">const</span> client = <span class="kw">new</span> BedrockRuntimeClient({ region: <span class="str">"us-east-1"</span> });
+
+<span class="kw">async function</span> askAssistant(question) {
+  <span class="kw">const</span> response = <span class="kw">await</span> client.send(<span class="kw">new</span> ConverseCommand({
+    modelId: <span class="str">"anthropic.claude-sonnet-5"</span>,
+    messages: [{ role: <span class="str">"user"</span>, content: [{ text: question }] }],
+  }));
+  <span class="kw">return</span> response.output.message.content[0].text;
+}</pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Keep the call inside your VPC</strong>
+      <p>Add a VPC interface endpoint for <code>bedrock-runtime</code> in your private subnets (same mechanism as any AWS PrivateLink endpoint) so the ECS task never needs a NAT gateway route to reach Bedrock.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Growing Beyond a Single Call</h2>
+
+<p>A raw model call only knows what's in the prompt. Real finance use cases — "summarize this client's last 6 statements," "answer questions about our fee schedule" — need the model grounded in your own data. Bedrock adds two managed layers for this, both optional and both add-ons to the same base call:</p>
+
+<table>
+  <thead><tr><th>Layer</th><th>What it does</th><th>When you'd add it</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Knowledge Bases</strong> (RAG)</td>
+      <td>Bedrock indexes your documents (from S3) into a vector store and retrieves relevant chunks before calling the model — the managed version of retrieval-augmented generation.</td>
+      <td>The assistant needs to answer from your app's own documents — statements, policies, KYC files in S3 (Lesson 13) — not just general knowledge.</td>
+    </tr>
+    <tr>
+      <td><strong>Guardrails</strong></td>
+      <td>A policy layer between your app and any model: content filters, PII redaction, and topic denial rules applied consistently regardless of which model is behind it.</td>
+      <td>Any customer-facing finance feature — filtering PII in prompts/responses and blocking off-topic or unsafe requests is close to a hard requirement, not a nice-to-have.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="flow">
+  <div class="ftitle">Request flow once Knowledge Bases + Guardrails are added</div>
+  User question <span class="arrow">→</span> Guardrails (check input) <span class="arrow">→</span> Knowledge Base retrieval (find relevant S3 docs) <span class="arrow">→</span> Model (answer using retrieved context) <span class="arrow">→</span> Guardrails (check output) <span class="arrow">→</span> Response
+</div>
+
+<p>These are deliberately out of scope for this lesson — they're the natural next lesson once the base invocation pattern above is solid.</p>
+
+<div class="callout finance">
+  <strong>Finance context: why Bedrock over calling a model API directly</strong>
+  Three things matter for a regulated app: encryption in transit and at rest by default; private connectivity via VPC PrivateLink so prompts and responses never traverse the public internet; and — critically — your data is not shared with model providers and is not used to train the underlying models. Bedrock also integrates with CloudTrail, so every model invocation is an auditable API call like any other AWS action, not a call to an untracked third-party endpoint.
+</div>
+
+<h2>Production Checklist</h2>
+
+<ul class="checklist">
+  <li>IAM role scoped to specific model ARNs via <code>bedrock:InvokeModel</code>, not a wildcard</li>
+  <li>VPC interface endpoint for <code>bedrock-runtime</code> so calls stay off the public internet</li>
+  <li>CloudTrail logging enabled for Bedrock API activity (Lesson 3/11 pattern)</li>
+  <li>Guardrails applied before shipping anything customer-facing — PII redaction and topic filters, not an afterthought</li>
+  <li>Model invocation logs (metadata, optionally full request/response) configured to land in S3 or CloudWatch for audit</li>
+  <li>Cost controlled with request-level token limits — Bedrock bills per input/output token, unlike your flat-rate ECS/RDS costs</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on Bedrock's core architecture.</p>
+
+  <div class="question" id="q1">
+    <p>1. In Azure terms, what does Amazon Bedrock correspond to?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Azure Cognitive Search</label>
+      <label><input type="radio" name="q1" value="b"> Azure OpenAI Service</label>
+      <label><input type="radio" name="q1" value="c"> Azure Functions</label>
+      <label><input type="radio" name="q1" value="d"> Azure Active Directory</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Both are a managed API in front of foundation models, billed per token, reachable through your cloud''s standard IAM and networking rather than a bare API key.','Not quite. The closest match is Azure OpenAI Service (now folded into Azure AI Foundry) — a managed, IAM-authenticated API in front of foundation models, the same role Bedrock plays on AWS.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Your ECS backend needs to call Bedrock. What grants it permission to do so?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> A Bedrock API key stored in an environment variable</label>
+      <label><input type="radio" name="q2" value="b"> The ECS task's IAM role, scoped to <code>bedrock:InvokeModel</code> on specific model ARNs</label>
+      <label><input type="radio" name="q2" value="c"> A shared secret embedded in the request body</label>
+      <label><input type="radio" name="q2" value="d"> Making the bucket holding the model public</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. Bedrock is authenticated like every other AWS service in this series — through the calling task''s IAM role, scoped as narrowly as possible to the exact model ARNs it needs. No separate API key to issue, rotate, or leak.','Not quite. Bedrock has no separate API-key system to manage — it uses the same IAM role your ECS task already has, scoped to bedrock:InvokeModel on the specific model ARNs it''s allowed to call.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Why route Bedrock calls through a VPC interface endpoint (PrivateLink) instead of letting the request go out through a NAT gateway to the public Bedrock endpoint?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> PrivateLink is required for the model to return a response at all</label>
+      <label><input type="radio" name="q3" value="b"> It keeps prompts and responses off the public internet entirely, which matters for a finance app handling sensitive data</label>
+      <label><input type="radio" name="q3" value="c"> NAT gateways cannot reach any AWS service, only third-party APIs</label>
+      <label><input type="radio" name="q3" value="d"> PrivateLink makes the model respond faster</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. A VPC interface endpoint keeps the traffic inside the AWS network end to end — no public internet hop for prompts or model responses, which is exactly the kind of private-connectivity requirement a regulated finance app cares about.','Not quite. Both paths work functionally, but PrivateLink keeps prompt/response traffic entirely inside the AWS network instead of crossing the public internet — the private-connectivity guarantee a finance workload wants.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Your assistant needs to answer questions using your app's own client statements stored in S3, not just general knowledge. Which Bedrock layer adds that?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Guardrails</label>
+      <label><input type="radio" name="q4" value="b"> Knowledge Bases</label>
+      <label><input type="radio" name="q4" value="c"> The Converse API</label>
+      <label><input type="radio" name="q4" value="d"> CloudTrail</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Knowledge Bases add the retrieval-augmented generation layer: Bedrock indexes your S3 documents into a vector store and retrieves relevant chunks before the model answers, grounding responses in your own data instead of general knowledge alone.','Not quite. Guardrails filters content and PII; it doesn''t add your data to the model''s context. Knowledge Bases is the layer that indexes your S3 documents and retrieves relevant passages so the model can answer from them — the RAG pattern.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  Bedrock is Azure OpenAI Service's counterpart: a managed, model-agnostic API your backend calls through the same IAM role it already uses for S3 and RDS, kept private with a VPC endpoint. That one call — <code>ConverseCommand</code> against a scoped model ARN — is the whole foundation. Knowledge Bases (grounding answers in your S3 documents) and Guardrails (PII/content filtering) are the next layers once a real feature needs them.
+</div>
+
+<div class="lesson-nav">
+  <a href="0003-iam.html">← L3: IAM</a> ·
+  <a href="0002-vpc-networking.html">← L2: VPC Networking</a> ·
+  <a href="0013-s3-object-storage.html">← L13: S3 Object Storage</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Topics you can explore next: Knowledge Bases for RAG over your app's documents · Guardrails for PII redaction and content filtering · Bedrock Agents for multi-step tool-calling workflows<br><br>
+  Next up: <a href="0015-agentcore-rag-multiagent.html">L15: AgentCore, RAG Internals, and Multi-Agent Systems</a><br><br>
+  <strong>Ask your teacher anything.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html" target="_blank">What is Amazon Bedrock — AWS Docs</a> ·
+  <a href="https://aws.amazon.com/bedrock/security-compliance/" target="_blank">Amazon Bedrock Security &amp; Compliance</a> ·
+  <a href="https://aws.amazon.com/bedrock/knowledge-bases/" target="_blank">Knowledge Bases for Amazon Bedrock</a> ·
+  <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html" target="_blank">Amazon Bedrock Guardrails</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
