@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 16 — How Lambda Works With a Bedrock Agent</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; }
+
+  .arch { border: 2px solid var(--aws-orange); border-radius: 8px; padding: 1.3rem; margin: 1.5rem 0; background: #fffdf8; font-family: sans-serif; font-size: 0.8rem; }
+  .arch-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: bold; color: var(--aws-orange); margin-bottom: 1rem; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 16 &middot; Generative AI</div>
+  <h1>How Lambda Works With a Bedrock Agent</h1>
+  <div class="subtitle">An agent can only <em>talk</em>. To <em>do</em> anything &mdash; look up a client balance, call your pricing API &mdash; it calls a tool, and that tool is almost always a Lambda function.</div>
+</header>
+
+<p>You have met the pieces separately: <a href="0010-sqs-lambda.html">Lambda</a> as your async job runner (Lesson 10), and <a href="0015-agentcore-rag-multiagent.html">AgentCore</a> as the platform for running agents (Lesson 15). This lesson connects them. The core idea: <strong>the model decides <em>what</em> to do; your Lambda is <em>how</em> it gets done.</strong> The agent runtime sits in the middle, translating between the two.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  This is the same shape as <span class="azure">Azure AI Agent Service</span> (or the Assistants API) calling a <span class="azure">function tool</span> you back with an <span class="azure">Azure Function</span>. The model emits a structured "call this function with these args" request; your compute runs it; the result goes back into the model's context. AWS's version wires the plumbing through IAM and a resource-based policy instead of a connection string.
+</div>
+
+<h2>The loop, end to end</h2>
+
+<div class="flow">
+  <div class="ftitle">One tool call inside an agent turn</div>
+  User asks a question <span class="arrow">&rarr;</span> agent runtime sends the prompt + list of available tools to the model <span class="arrow">&rarr;</span> model replies "call <code>get_balance</code> with <code>account_id=123</code>" <span class="arrow">&rarr;</span> runtime invokes your <strong>Lambda</strong> with those args <span class="arrow">&rarr;</span> Lambda queries RDS, returns JSON <span class="arrow">&rarr;</span> runtime feeds the result back to the model <span class="arrow">&rarr;</span> model writes the final answer for the user
+</div>
+
+<p>Your Lambda never talks to the model. It only ever receives <em>arguments</em> and returns a <em>result</em>. The model never touches your database. That separation is the whole point &mdash; and in a finance context, it is also the audit boundary.</p>
+
+<h2>Two ways to wire it</h2>
+
+<p>There are two integration paths, matching the two eras from Lesson 15. Same principle, different contract.</p>
+
+<table>
+  <thead><tr><th></th><th>AgentCore Gateway (current)</th><th>Bedrock Agents Classic &mdash; action groups (legacy)</th></tr></thead>
+  <tbody>
+    <tr><td>How the tool is defined</td><td>A <strong>tool schema</strong> (JSON: name, description, <code>inputSchema</code>) attached to a Gateway <em>target</em> pointing at your Lambda</td><td>An <strong>action group</strong> on the agent, with an OpenAPI schema or function definitions, linked to your Lambda</td></tr>
+    <tr><td>What the agent sees</td><td>An <strong>MCP tool</strong> over one stable endpoint &mdash; any MCP client can use it</td><td>An action the built-in orchestrator can invoke</td></tr>
+    <tr><td>Event your Lambda receives</td><td>A flat map of <code>inputSchema</code> properties &rarr; values</td><td>An <code>event</code> with <code>actionGroup</code>, <code>function</code>, <code>parameters[]</code>, session attributes</td></tr>
+    <tr><td>Response shape</td><td>Any valid JSON the Gateway can parse</td><td>A specific <code>{ messageVersion, response: { functionResponse: { responseBody: { TEXT: { body }}}}}</code> envelope</td></tr>
+    <tr><td>Permission wiring</td><td>Gateway's IAM execution role granted <code>lambda:InvokeFunction</code>; Lambda resource policy trusts the Gateway</td><td>Resource-based policy on the Lambda trusting <code>bedrock.amazonaws.com</code> for that agent ARN</td></tr>
+  </tbody>
+</table>
+
+<p>For anything new, use <strong>Gateway</strong>. The rest of this lesson works through that path.</p>
+
+<div class="callout info">
+  <strong>&ldquo;Do I still need an action group to let an agent call a Lambda?&rdquo; &mdash; no</strong>
+  Action groups are the <em>Classic</em> wiring. They are still supported and not deprecated, so keep them if you already run a Classic agent &mdash; and Classic did get lighter over time (plain <strong>function definitions</strong> instead of a full OpenAPI schema, plus <strong>return of control</strong> so your own code runs the call instead of a Lambda). But nothing new requires them. On the current path you attach a <strong>tool schema to an AgentCore Gateway target</strong> and the Lambda is exposed as an <strong>MCP tool</strong> &mdash; no action group, no per-agent binding. Rule of thumb: new build &rarr; Gateway target; recognise action groups when you meet them in existing projects, don't reach for them.
+</div>
+
+<h2>Path 1 &mdash; AgentCore Gateway (build on this)</h2>
+
+<h3>Step by step</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Write the Lambda</strong> that does the real work &mdash; query RDS, call an internal API, whatever the tool is for.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Write a tool schema</strong> &mdash; JSON with <code>name</code>, a good <code>description</code> (the model reads this to decide when to call it), and <code>inputSchema</code> listing the arguments and which are required.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Add a Gateway target</strong> pointing at the Lambda ARN, with that schema inline or from S3. The Gateway now exposes it as an MCP tool named <code>&lt;target&gt;___&lt;tool&gt;</code>.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Grant permissions</strong> &mdash; the Gateway's execution role gets <code>lambda:InvokeFunction</code> on your function; the function's resource policy allows the Gateway to invoke it.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Point your agent at the Gateway endpoint.</strong> Strands / LangGraph / your own code connects over MCP, discovers the tool, and the model can now call it.</p></div></div>
+</div>
+
+<h3>What the Lambda actually receives</h3>
+
+<p>When the Gateway invokes your function, the <code>event</code> is just the arguments &mdash; a flat map from your <code>inputSchema</code> properties to the values the model chose:</p>
+
+<pre><span class="cmt"># event  (for inputSchema with properties: account_id, as_of_date)</span>
+{
+  <span class="key">"account_id"</span>: <span class="str">"ACC-10029"</span>,
+  <span class="key">"as_of_date"</span>: <span class="str">"2026-08-27"</span>
+}</pre>
+
+<p>The metadata lives on the <code>context</code> object instead &mdash; message version, request ID, gateway ID, target ID, and the full tool name. Because the visible tool name is prefixed with the target name, you strip the prefix to learn which tool was called:</p>
+
+<pre><span class="kw">def</span> <span class="key">lambda_handler</span>(event, context):
+    ctx = context.client_context.custom
+    tool = ctx[<span class="str">"bedrockAgentCoreToolName"</span>]           <span class="cmt"># e.g. "accounts___get_balance"</span>
+    tool = tool.split(<span class="str">"___"</span>, <span class="num">1</span>)[<span class="num">1</span>]                 <span class="cmt"># -> "get_balance"</span>
+
+    <span class="kw">if</span> tool == <span class="str">"get_balance"</span>:
+        bal = query_rds(event[<span class="str">"account_id"</span>], event[<span class="str">"as_of_date"</span>])
+        <span class="kw">return</span> {<span class="key">"balance"</span>: bal, <span class="key">"currency"</span>: <span class="str">"USD"</span>}     <span class="cmt"># any JSON the Gateway can parse</span>
+
+    <span class="kw">return</span> {<span class="key">"error"</span>: <span class="str">f"unknown tool {tool}"</span>}</pre>
+
+<p>Return plain JSON. The Gateway relays it back to the agent, which feeds it to the model as the tool result.</p>
+
+<div class="callout warn">
+  <strong>Importing an existing Lambda?</strong>
+  A function you already use elsewhere won't work unchanged. The <code>event</code> and <code>context</code> schema is different from a normal invoke, and you must strip the tool-name prefix yourself. Plan a small adapter layer rather than repointing a shared function.
+</div>
+
+<h2>Path 2 &mdash; Classic action groups (recognise it, don't build it)</h2>
+
+<p>You will see this in older projects and most tutorials. The agent has <em>action groups</em>; each maps to a Lambda. The <code>event</code> is richer and the response must follow a fixed envelope:</p>
+
+<pre><span class="cmt"># response your Lambda must return for a Classic action group</span>
+{
+  <span class="key">"messageVersion"</span>: <span class="str">"1.0"</span>,
+  <span class="key">"response"</span>: {
+    <span class="key">"actionGroup"</span>: <span class="str">"accounts"</span>,
+    <span class="key">"function"</span>: <span class="str">"get_balance"</span>,
+    <span class="key">"functionResponse"</span>: {
+      <span class="key">"responseBody"</span>: { <span class="key">"TEXT"</span>: { <span class="key">"body"</span>: <span class="str">"Balance is 42,101.55 USD"</span> } }
+    }
+  }
+}</pre>
+
+<p>Permission-wise, Classic needs a <strong>resource-based policy</strong> on the Lambda allowing <code>bedrock.amazonaws.com</code> to invoke it, scoped to the specific agent ARN via the <code>AWS:SourceArn</code> condition &mdash; the same pattern you saw for SNS/S3 invoking Lambda in Lesson 10, just a different principal.</p>
+
+<h2>Zoom out &mdash; building the whole agentic system in Bedrock</h2>
+
+<p>This lesson is about one wire (Lambda as a tool). Here is where that wire sits in the full build. On the current AWS stack an &ldquo;agentic AI system&rdquo; means <strong>AgentCore</strong> (Lesson 15) hosting an agent you wrote in any framework &mdash; Strands, LangGraph, CrewAI &mdash; not the Classic managed orchestrator.</p>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Enable a foundation model.</strong> In the Bedrock console, request model access (e.g. Claude). This is the reasoning engine &mdash; the part that decides <em>what</em> to do.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Write the agent.</strong> Pick a framework, write the system prompt / instructions, and decide single-agent vs. <strong>supervisor + sub-agents</strong> (Lesson 15). Keep it runnable locally first.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Host it on AgentCore Runtime.</strong> Package the agent and deploy it to a Runtime endpoint &mdash; serverless, session-isolated, framework-agnostic. This replaces standing up your own container/ASG for the agent loop.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Give it knowledge (RAG).</strong> Create a <strong>Bedrock Knowledge Base</strong> over an S3 corpus with a vector store (OpenSearch Serverless or Aurora pgvector). The agent retrieves grounding context instead of hallucinating.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Give it memory.</strong> Use <strong>AgentCore Memory</strong> for short-term (conversation) and long-term (across sessions) state, rather than stuffing everything into the prompt.</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><p><strong>Give it tools &mdash; this lesson.</strong> Wrap each Lambda / internal API as an <strong>MCP tool via an AgentCore Gateway target</strong> with a tool schema. Gateway is the one endpoint the agent connects to for every tool.</p></div></div>
+  <div class="step"><div class="step-num">7</div><div class="step-body"><p><strong>Wire identity.</strong> <strong>AgentCore Identity</strong> handles inbound auth (who is allowed to call the agent) and outbound auth (the agent calling downstream APIs <em>as</em> that user). Identity flows through session context &mdash; never as a model-chosen argument.</p></div></div>
+  <div class="step"><div class="step-num">8</div><div class="step-body"><p><strong>Add guardrails.</strong> Attach a <strong>Bedrock Guardrail</strong> for denied topics, content filters, and PII redaction on both the user input and the model output.</p></div></div>
+  <div class="step"><div class="step-num">9</div><div class="step-body"><p><strong>Turn on observability.</strong> <strong>AgentCore Observability</strong> emits traces (model calls, tool calls, latencies) to CloudWatch. Combined with the per-tool audit log from your Lambda, this is your &ldquo;which user did what&rdquo; record.</p></div></div>
+  <div class="step"><div class="step-num">10</div><div class="step-body"><p><strong>Expose and iterate.</strong> Put the Runtime endpoint behind your app (API Gateway / your backend). Evaluate tool-calling accuracy, tune tool <code>description</code>s and the system prompt, repeat.</p></div></div>
+</div>
+
+<div class="callout info">
+  <strong>Classic shortcut</strong>
+  If you don't need a custom framework, <span class="aws">Bedrock Agents Classic</span> does steps 2&ndash;3, 6, and part of 4&ndash;5 for you: you configure an agent with instructions, action groups, and a knowledge base in the console, and AWS runs the orchestration loop. Less control, faster to a demo. New production systems generally go the AgentCore route above.
+</div>
+
+<h2>Finance-context callouts</h2>
+
+<div class="callout finance">
+  <strong>The Lambda is your control point, not the model</strong>
+  Never trust the arguments blindly &mdash; the model chose them. Validate <code>account_id</code> against the <em>authenticated user's</em> entitlements inside the Lambda before you query. Pass user identity through AgentCore Identity / session context, not as a tool argument the model could fabricate.
+</div>
+
+<div class="callout finance">
+  <strong>Every tool call is an audit event</strong>
+  Log, from inside the Lambda: the tool name, the resolved caller identity, the arguments, and a request ID from <code>context</code>. Combined with AgentCore Observability traces (Lesson 15), that gives you "which user, via which agent, read which account, when" &mdash; the record an examiner will ask for.
+</div>
+
+<div class="callout finance">
+  <strong>Least privilege per tool</strong>
+  Give each tool Lambda its own IAM role with only the RDS / API access that one tool needs &mdash; exactly the Task Role discipline from <a href="0003-iam.html">Lesson 3</a>. A compromised or mis-prompted agent can then only reach what its narrowest tool allows.
+</div>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>New build &rarr; AgentCore Gateway + Lambda target, not Classic action groups</li>
+  <li>Tool <code>description</code> written for the model &mdash; clear enough that it calls the right tool at the right time</li>
+  <li>Lambda strips the <code>&lt;target&gt;___</code> prefix before dispatching on tool name</li>
+  <li>Arguments validated against the authenticated user's entitlements <em>inside</em> the Lambda</li>
+  <li>User identity taken from session/Identity context, never from a model-supplied argument</li>
+  <li>Each tool Lambda has its own least-privilege IAM role</li>
+  <li>Resource policy / Gateway invoke permission scoped to the specific Gateway or agent ARN</li>
+  <li>Tool name, caller, args, and request ID logged for audit on every invocation</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on how Lambda connects to a Bedrock agent.</p>
+
+  <div class="question" id="q1">
+    <p>1. In the tool-call loop, what does your Lambda function directly exchange messages with?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> The foundation model, sending it the tool result as a prompt</label>
+      <label><input type="radio" name="q1" value="b"> The agent runtime, receiving arguments and returning a result</label>
+      <label><input type="radio" name="q1" value="c"> The end user's browser, over a direct websocket connection</label>
+      <label><input type="radio" name="q1" value="d"> The vector store, to perform the similarity search itself</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. The Lambda only ever receives arguments from the agent runtime and returns a result to it. The model decides what to call; the runtime does the invoking and relays the result back into the model context.','Not quite. The Lambda never talks to the model or the user directly. It exchanges only arguments and results with the agent runtime, which sits between the model and your code.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. With an AgentCore Gateway Lambda target, what does the <code>event</code> object passed to your handler contain?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> A flat map of the inputSchema property names to their values</label>
+      <label><input type="radio" name="q2" value="b"> The full conversation history plus the system prompt text</label>
+      <label><input type="radio" name="q2" value="c"> A messageVersion envelope wrapping an actionGroup and function</label>
+      <label><input type="radio" name="q2" value="d"> The raw MCP protocol frame for you to parse and decode</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','a','Correct. The Gateway event is just the arguments: a flat map from your inputSchema properties to the values the model chose. Metadata like the tool name and request ID lives on the context object instead.','Not quite. The messageVersion/actionGroup envelope is the Classic action-group shape. A Gateway target gets a flat map of inputSchema properties to values, with metadata on the context object.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Why must you strip a prefix from the tool name your Gateway Lambda sees?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> The prefix contains a secret token that must not be logged</label>
+      <label><input type="radio" name="q3" value="b"> The visible MCP tool name is prefixed with the target name</label>
+      <label><input type="radio" name="q3" value="c"> Lambda truncates any event key longer than sixty characters</label>
+      <label><input type="radio" name="q3" value="d"> The model appends a random nonce to prevent replay attacks</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. The Gateway names each tool as <target>___<tool>, so to dispatch on the bare tool name inside your handler you split on the delimiter and take the second part.','Not quite. It is purely a naming convention: the Gateway exposes tools as <target>___<tool>, so you strip the target prefix to get the bare tool name for your dispatch logic.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. A finance app tool takes <code>account_id</code> as an argument. Where should you enforce that the caller is allowed to see that account?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Inside the Lambda, against the authenticated user's entitlements</label>
+      <label><input type="radio" name="q4" value="b"> In the tool description, by telling the model to check first</label>
+      <label><input type="radio" name="q4" value="c"> Nowhere, since the model only requests valid account numbers</label>
+      <label><input type="radio" name="q4" value="d"> In the vector store index, by filtering chunks before retrieval</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','a','Correct. The model chose the arguments and cannot be trusted to enforce access. The Lambda is the control point: resolve the real caller identity from session context and check entitlements before querying.','Not quite. The model picked those arguments and a prompt instruction is not an access control. Enforcement has to happen in the Lambda, against the authenticated user identity from session context.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  A Bedrock agent reasons; a Lambda acts. The agent runtime translates the model's "call this tool with these args" into a Lambda invoke and relays the JSON result back. On the current path, AgentCore Gateway wraps your Lambda as an MCP tool: the <code>event</code> is a flat map of arguments, metadata is on <code>context</code>, permissions are an IAM invoke grant plus a resource policy. Classic action groups do the same job with a richer event and a fixed response envelope. In finance, the Lambda &mdash; not the model &mdash; is where you validate entitlements, apply least privilege, and write the audit log.
+</div>
+
+<div class="lesson-nav">
+  <a href="0015-agentcore-rag-multiagent.html">&larr; L15: AgentCore, RAG &amp; multi-agent</a> &middot;
+  <a href="0010-sqs-lambda.html">&larr; L10: SQS + Lambda</a> &middot;
+  <a href="0003-iam.html">&larr; L3: IAM</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: AgentCore Gateway auth (inbound + outbound) &middot; passing user identity through AgentCore Identity &middot; writing tool schemas the model uses reliably<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html" target="_blank">AWS Lambda function targets &mdash; Amazon Bedrock AgentCore Developer Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html" target="_blank">AWS Lambda function targets &mdash; AgentCore Dev Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-tool-naming.html" target="_blank">How AgentCore Gateway tools are named &mdash; AWS Docs</a> &middot;
+  <a href="https://aws.amazon.com/blogs/machine-learning/introducing-amazon-bedrock-agentcore-gateway-transforming-enterprise-ai-agent-tool-development/" target="_blank">Introducing Amazon Bedrock AgentCore Gateway &mdash; AWS ML Blog</a> &middot;
+  <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/agents-lambda.html" target="_blank">Configure Lambda functions for an Amazon Bedrock agent (Classic) &mdash; AWS Docs</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

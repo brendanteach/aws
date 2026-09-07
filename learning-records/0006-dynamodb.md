@@ -1,0 +1,7 @@
+# DynamoDB Is the Key-Access Store for Agent Memory and Tool Data
+
+User asked for a dedicated DynamoDB lesson covering three things: what it is, basic CRUD, and how an agentic AI system uses it via AgentCore — a natural pairing with [[0005-lambda-as-bedrock-agent-tool]] now that the agent-tool wiring is established.
+
+**Evidence:** Single focused request naming all three sub-topics. Delivered as Lesson 17 (bonus track, alongside [[0004-agentcore-rag-multiagent]] and the Lambda lesson). Grounded on current AWS docs: DynamoDB core components, boto3 resource-interface CRUD, Streams, PITR, and the AgentCore Gateway Lambda-target pattern from Lesson 16.
+
+**Implications:** User now has DynamoDB positioned against RDS (key-access vs relational/reporting), the CRUD verbs (`put_item`/`get_item`/`query`/`update_item`/`delete_item`), the "model access patterns first" discipline, Query-not-Scan, and conditional writes for idempotency. For agents, two roles are established: (1) DynamoDB behind a Gateway target Lambda with entitlement checks in the Lambda, (2) DynamoDB as session history / framework checkpoints / tool-call audit log / idempotency store, hardened with TTL + PITR + Streams. Mapped onto the 10-step agentic build from Lesson 16 (steps 5 and 6). Still architecture-level — user has not started building the actual AI feature. Natural next steps: single-table design, Streams→Lambda projections, or a hands-on Strands + DynamoDB checkpointer walkthrough.

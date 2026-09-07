@@ -1,0 +1,7 @@
+# CDK Is Infrastructure in a Real Language, Compiled to CloudFormation
+
+User asked for a dedicated CDK lesson ("teach me how to use it") after the [[0006-dynamodb]] lesson — a natural IaC follow-up to the HCL-based Terraform lesson (Lesson 9) already in the series.
+
+**Evidence:** Direct request for a how-to lesson. Delivered as Lesson 18 (bonus track). Grounded on current AWS CDK v2 docs: App/Stack/Construct model, L1/L2/L3 construct levels, bootstrap, the synth/diff/deploy/watch/destroy workflow, `assertions.Template` testing, and cdk-nag.
+
+**Implications:** User now has CDK positioned against Terraform (Lesson 9) and raw CloudFormation — CDK for AWS-only, app-developer teams, Lambda/container/IAM-heavy stacks; Terraform for multi-cloud and strong import/drift. Examples use Python (series-consistent with the Lambda/agent code). Key teaching points: L2 constructs by default, `.grant_*()` methods generate least-privilege IAM instead of hand-written policy JSON, automatic asset bundling, `cdk diff` as a deploy gate with replacements (`[-/+]`) as the danger signal, `removal_policy=RETAIN` on stateful resources, template assertion tests. The worked stack provisions the DynamoDB table + tool Lambda from Lesson 17. Still architecture/tooling level — user has not started building the actual app. Natural next steps: CDK Pipelines (self-mutating CI/CD), custom L3 constructs, or `cdk import` for existing resources.

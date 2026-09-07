@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 17 — Amazon DynamoDB: Serverless NoSQL, CRUD, and Agent State</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 17 &middot; Database</div>
+  <h1>Amazon DynamoDB: Serverless NoSQL, CRUD, and Agent State</h1>
+  <div class="subtitle">A key-value database with no servers to run and no capacity to plan &mdash; and the natural place an AgentCore agent keeps session memory, audit trails, and idempotency records.</div>
+</header>
+
+<p>Lesson 5 gave you <a href="0005-rds.html">RDS PostgreSQL</a> &mdash; the relational database for your core financial data, where you need joins, transactions across many tables, and ad-hoc SQL for reporting. DynamoDB is the other half of the storage story: when you know <em>exactly</em> how you'll look a record up (&ldquo;give me user 883's profile&rdquo;, &ldquo;give me this session's messages&rdquo;) and you want that lookup to stay single-digit-millisecond fast whether the table holds a thousand rows or a billion.</p>
+
+<p>This lesson covers three things: what DynamoDB actually is, how to do basic CRUD against it from Python, and how an <a href="0015-agentcore-rag-multiagent.html">AgentCore</a> agent uses it &mdash; both as a tool it calls and as the store behind its own memory.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  DynamoDB is <span class="azure">Azure Cosmos DB</span> (the core NoSQL / Table API). Both are fully managed, horizontally partitioned, single-digit-ms NoSQL stores billed by throughput. A DynamoDB <em>table</em> &asymp; a Cosmos <em>container</em>; a DynamoDB <em>partition key</em> &asymp; a Cosmos <em>partition key</em>; DynamoDB <em>on-demand mode</em> &asymp; Cosmos <em>serverless / autoscale</em>. If you have used Azure Table Storage, DynamoDB is that idea grown up &mdash; secondary indexes, transactions, streams, TTL.
+</div>
+
+<h2>What DynamoDB is</h2>
+
+<p>A <strong>fully managed, serverless NoSQL database</strong>. There is no instance to size, no engine version to patch, no storage to pre-allocate. You create a table, and AWS spreads it across partitions automatically as it grows. Encryption at rest is always on. You pay for the requests you make (on-demand) or for reserved throughput (provisioned + autoscaling).</p>
+
+<h3>The data model</h3>
+
+<table>
+  <thead><tr><th>Term</th><th>What it is</th><th>Relational analogy</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Table</strong></td><td>A collection of items. No fixed schema beyond the key.</td><td>Table</td></tr>
+    <tr><td><strong>Item</strong></td><td>One record. Max <strong>400 KB</strong>. Each item can have different attributes.</td><td>Row</td></tr>
+    <tr><td><strong>Attribute</strong></td><td>A typed field: string, number, binary, bool, list, map, set, null.</td><td>Column / cell</td></tr>
+    <tr><td><strong>Partition key</strong> (PK)</td><td>Hash key. Decides which partition the item lives on. Required.</td><td>Part of the primary key</td></tr>
+    <tr><td><strong>Sort key</strong> (SK)</td><td>Optional. Orders items <em>within</em> a partition key and enables range queries.</td><td>The rest of a composite primary key</td></tr>
+    <tr><td><strong>GSI</strong></td><td>Global Secondary Index &mdash; a second (PK, SK) pair to query the same data a different way.</td><td>A secondary index (roughly)</td></tr>
+  </tbody>
+</table>
+
+<p>The primary key is either just a <strong>partition key</strong> (each value unique, like a user ID) or a <strong>partition key + sort key</strong> composite (many items share a partition key, distinguished and ordered by the sort key &mdash; e.g. PK = <code>SESSION#abc</code>, SK = <code>MSG#2026-09-03T10:00:01</code>).</p>
+
+<div class="callout warn">
+  <strong>You model for access patterns, not entities</strong>
+  In RDS you design normalized tables and figure out queries later. In DynamoDB it is the reverse: write down every lookup your app will do <em>first</em>, then design keys and indexes so each one is a direct <code>GetItem</code> or <code>Query</code>. There are no joins, and a full-table <code>Scan</code> is a last resort, not a query tool.
+</div>
+
+<h3>When to reach for it (vs RDS)</h3>
+
+<table>
+  <thead><tr><th>Use DynamoDB for</th><th>Use RDS for</th></tr></thead>
+  <tbody>
+    <tr><td>User profiles, preferences, feature flags</td><td>Accounts, positions, ledger entries &mdash; anything transactional and relational</td></tr>
+    <tr><td>Session state, chat history, agent memory</td><td>Reporting and analytics with ad-hoc SQL</td></tr>
+    <tr><td>Idempotency keys, rate-limit counters, locks</td><td>Data touched by many-table transactions</td></tr>
+    <tr><td>High-volume event / audit logs keyed by entity</td><td>Anything where you don't yet know the query patterns</td></tr>
+    <tr><td>Anything needing predictable latency at large scale</td><td>Complex joins, foreign keys, constraints</td></tr>
+  </tbody>
+</table>
+
+<h3>Features worth knowing exist</h3>
+
+<ul class="checklist">
+  <li><strong>On-demand vs provisioned capacity</strong> &mdash; on-demand: no planning, pay per request, good default. Provisioned + autoscaling: cheaper for steady, predictable load.</li>
+  <li><strong>DynamoDB Streams</strong> &mdash; an ordered change feed of every write, consumable by Lambda. This is your hook for &ldquo;when an item changes, do X&rdquo; (audit, projections, notifications).</li>
+  <li><strong>TTL</strong> &mdash; set a timestamp attribute and DynamoDB deletes the item automatically when it passes. Perfect for session and cache data.</li>
+  <li><strong>Transactions</strong> &mdash; <code>TransactWriteItems</code> gives all-or-nothing writes across up to 100 items / multiple tables.</li>
+  <li><strong>Conditional writes</strong> &mdash; &ldquo;only write if this attribute doesn't exist / still equals X&rdquo;. The basis of idempotency and optimistic locking.</li>
+  <li><strong>Point-in-time recovery (PITR)</strong> &mdash; continuous backups, restore to any second in the last 35 days.</li>
+  <li><strong>Global tables</strong> &mdash; multi-region active-active replication.</li>
+  <li><strong>Consistency</strong> &mdash; reads are eventually consistent by default; ask for <code>ConsistentRead=True</code> when you must see your own last write.</li>
+</ul>
+
+<h2>Basic CRUD from Python</h2>
+
+<p>All examples use <code>boto3</code>. The <code>resource</code> interface (below) maps items to plain Python dicts; the lower-level <code>client</code> interface makes you write <code>{"S": "..."}</code> type descriptors by hand.</p>
+
+<h3>Create the table (once, usually in Terraform/CDK)</h3>
+
+<pre><span class="kw">import</span> boto3
+ddb = boto3.resource(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
+
+ddb.<span class="fn">create_table</span>(
+    TableName=<span class="str">"customers"</span>,
+    KeySchema=[
+        {<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>},   <span class="cmt"># partition key</span>
+        {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"KeyType"</span>: <span class="str">"RANGE"</span>},  <span class="cmt"># sort key</span>
+    ],
+    AttributeDefinitions=[
+        {<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>},
+        {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>},
+    ],
+    BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,   <span class="cmt"># on-demand</span>
+)</pre>
+
+<h3>C &mdash; PutItem (create or full replace)</h3>
+
+<pre>table = ddb.<span class="fn">Table</span>(<span class="str">"customers"</span>)
+
+table.<span class="fn">put_item</span>(Item={
+    <span class="str">"pk"</span>: <span class="str">"CUST#883"</span>,
+    <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>,
+    <span class="str">"name"</span>: <span class="str">"Ada Lovelace"</span>,
+    <span class="str">"tier"</span>: <span class="str">"private"</span>,
+    <span class="str">"kyc_verified"</span>: <span class="kw">True</span>,
+})
+
+<span class="cmt"># Insert-only: fail if this item already exists (idempotency)</span>
+<span class="kw">from</span> botocore.exceptions <span class="kw">import</span> ClientError
+<span class="kw">try</span>:
+    table.<span class="fn">put_item</span>(
+        Item={<span class="str">"pk"</span>: <span class="str">"CUST#883"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>, <span class="str">"name"</span>: <span class="str">"Ada Lovelace"</span>},
+        ConditionExpression=<span class="str">"attribute_not_exists(pk)"</span>,
+    )
+<span class="kw">except</span> ClientError <span class="kw">as</span> e:
+    <span class="kw">if</span> e.response[<span class="str">"Error"</span>][<span class="str">"Code"</span>] == <span class="str">"ConditionalCheckFailedException"</span>:
+        <span class="kw">pass</span>  <span class="cmt"># already created &mdash; safe to ignore</span></pre>
+
+<h3>R &mdash; GetItem (one item by key) and Query (a range within a partition)</h3>
+
+<pre><span class="cmt"># GetItem &mdash; exact key, the fastest possible read</span>
+resp = table.<span class="fn">get_item</span>(Key={<span class="str">"pk"</span>: <span class="str">"CUST#883"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>})
+profile = resp.<span class="fn">get</span>(<span class="str">"Item"</span>)   <span class="cmt"># None if not found</span>
+
+<span class="cmt"># Query &mdash; all items under one partition key, optionally filtered by sort key</span>
+<span class="kw">from</span> boto3.dynamodb.conditions <span class="kw">import</span> Key
+resp = table.<span class="fn">query</span>(
+    KeyConditionExpression=Key(<span class="str">"pk"</span>).<span class="fn">eq</span>(<span class="str">"CUST#883"</span>) & Key(<span class="str">"sk"</span>).<span class="fn">begins_with</span>(<span class="str">"TXN#"</span>),
+    ScanIndexForward=<span class="kw">False</span>,   <span class="cmt"># newest first</span>
+    Limit=<span class="num">20</span>,
+)
+transactions = resp[<span class="str">"Items"</span>]</pre>
+
+<div class="callout danger">
+  <strong>Never <code>Scan</code> in a hot path</strong>
+  <code>Scan</code> reads every item in the table and filters after. On a big table it is slow and expensive. If you find yourself wanting a <code>Scan</code>, you are missing an index &mdash; add a GSI whose key matches the lookup you need.
+</div>
+
+<h3>U &mdash; UpdateItem (partial update, atomic counters)</h3>
+
+<pre>table.<span class="fn">update_item</span>(
+    Key={<span class="str">"pk"</span>: <span class="str">"CUST#883"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>},
+    UpdateExpression=<span class="str">"SET tier = :t, updated_at = :u ADD login_count :one"</span>,
+    ExpressionAttributeValues={
+        <span class="str">":t"</span>: <span class="str">"institutional"</span>,
+        <span class="str">":u"</span>: <span class="str">"2026-09-03T12:00:00Z"</span>,
+        <span class="str">":one"</span>: <span class="num">1</span>,
+    },
+    ConditionExpression=<span class="str">"attribute_exists(pk)"</span>,   <span class="cmt"># don't create it if missing</span>
+)</pre>
+
+<h3>D &mdash; DeleteItem</h3>
+
+<pre>table.<span class="fn">delete_item</span>(Key={<span class="str">"pk"</span>: <span class="str">"CUST#883"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>})</pre>
+
+<p>For bulk work there is <code>batch_writer()</code> (up to 25 puts/deletes per request, auto-retried) and <code>TransactWriteItems</code> when several writes must succeed or fail together.</p>
+
+<h2>DynamoDB in an AgentCore agentic system</h2>
+
+<p>There are two distinct roles, and a real system usually uses both.</p>
+
+<h3>Role 1 &mdash; DynamoDB behind a tool the agent calls</h3>
+
+<p>This is the <a href="0016-lambda-bedrock-agent-tools.html">Lesson 16</a> pattern. The agent decides it needs data; it calls an MCP tool exposed through <strong>AgentCore Gateway</strong>; the target Lambda reads DynamoDB and returns JSON.</p>
+
+<div class="flow">
+  <div class="ftitle">Agent reads a customer profile</div>
+  Model: &ldquo;call <code>get_customer_profile</code> with <code>customer_id=883</code>&rdquo; <span class="arrow">&rarr;</span> Gateway invokes the target <strong>Lambda</strong> <span class="arrow">&rarr;</span> Lambda checks the caller's entitlements <span class="arrow">&rarr;</span> <code>table.get_item(Key=...)</code> <span class="arrow">&rarr;</span> returns <code>{"name": ..., "tier": ...}</code> <span class="arrow">&rarr;</span> model uses it in the answer
+</div>
+
+<pre><span class="kw">def</span> <span class="fn">lambda_handler</span>(event, context):
+    tool = context.client_context.custom[<span class="str">"bedrockAgentCoreToolName"</span>].<span class="fn">split</span>(<span class="str">"___"</span>, <span class="num">1</span>)[<span class="num">1</span>]
+
+    <span class="kw">if</span> tool == <span class="str">"get_customer_profile"</span>:
+        caller = <span class="fn">resolve_identity</span>(context)              <span class="cmt"># from AgentCore Identity / session</span>
+        cust_id = event[<span class="str">"customer_id"</span>]                   <span class="cmt"># model-chosen &mdash; do NOT trust</span>
+        <span class="kw">if</span> <span class="kw">not</span> <span class="fn">can_view</span>(caller, cust_id):
+            <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">"not authorized"</span>}
+
+        item = table.<span class="fn">get_item</span>(
+            Key={<span class="str">"pk"</span>: <span class="str">f"CUST#{cust_id}"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>}
+        ).<span class="fn">get</span>(<span class="str">"Item"</span>)
+        <span class="kw">return</span> {<span class="str">"profile"</span>: item} <span class="kw">if</span> item <span class="kw">else</span> {<span class="str">"error"</span>: <span class="str">"not found"</span>}</pre>
+
+<div class="callout finance">
+  <strong>The tool Lambda enforces access, not the model</strong>
+  The model picked <code>customer_id</code>. It could pick any value. Entitlement is checked in the Lambda against the <em>authenticated</em> caller, exactly as in Lesson 16. DynamoDB's <code>IAM</code> policy on the Lambda role should also be scoped &mdash; e.g. only <code>dynamodb:GetItem</code> / <code>Query</code> on the one table, no <code>Scan</code>, no writes if the tool only reads.
+</div>
+
+<h3>Role 2 &mdash; DynamoDB as the agent's own memory and audit store</h3>
+
+<p>AgentCore Memory is a managed option, but many teams back their own state in DynamoDB because it is cheap, fast, and they already trust it for durability. Common items:</p>
+
+<table>
+  <thead><tr><th>What</th><th>Key design</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Conversation / session history</td><td>PK <code>SESSION#&lt;id&gt;</code>, SK <code>MSG#&lt;timestamp&gt;</code></td><td><code>Query</code> by PK to replay the thread. TTL attribute to expire idle sessions.</td></tr>
+    <tr><td>Framework checkpoints (LangGraph, Strands)</td><td>PK <code>THREAD#&lt;id&gt;</code>, SK <code>CKPT#&lt;seq&gt;</code></td><td>Lets a long-running agent resume after a restart.</td></tr>
+    <tr><td>Tool-call audit log</td><td>PK <code>SESSION#&lt;id&gt;</code>, SK <code>TOOL#&lt;timestamp&gt;</code></td><td>Every invocation: tool name, resolved caller, args, request ID. Feeds Streams &rarr; long-term audit store.</td></tr>
+    <tr><td>Action idempotency</td><td>PK <code>ACTION#&lt;hash&gt;</code></td><td>Conditional <code>put_item(attribute_not_exists(pk))</code> so a retried agent step can't place the same trade twice.</td></tr>
+  </tbody>
+</table>
+
+<pre><span class="cmt"># Append one message to session history (called by the agent runtime each turn)</span>
+sessions.<span class="fn">put_item</span>(Item={
+    <span class="str">"pk"</span>: <span class="str">f"SESSION#{session_id}"</span>,
+    <span class="str">"sk"</span>: <span class="str">f"MSG#{now_iso()}"</span>,
+    <span class="str">"role"</span>: <span class="str">"assistant"</span>,
+    <span class="str">"content"</span>: text,
+    <span class="str">"ttl"</span>: <span class="fn">int</span>(time.time()) + <span class="num">86400</span> * <span class="num">30</span>,   <span class="cmt"># auto-delete after 30 days</span>
+})
+
+<span class="cmt"># Replay the thread on the next request</span>
+history = sessions.<span class="fn">query</span>(
+    KeyConditionExpression=Key(<span class="str">"pk"</span>).<span class="fn">eq</span>(<span class="str">f"SESSION#{session_id}"</span>) & Key(<span class="str">"sk"</span>).<span class="fn">begins_with</span>(<span class="str">"MSG#"</span>)
+)[<span class="str">"Items"</span>]</pre>
+
+<div class="callout finance">
+  <strong>Streams + PITR = the examiner's answer</strong>
+  Turn on <strong>DynamoDB Streams</strong> on the audit table and fan every change to a Lambda that writes an immutable record to S3 (Object Lock / WORM, Lesson 13). Turn on <strong>PITR</strong> so an accidental delete is recoverable. Together with AgentCore Observability traces (Lesson 15) you can reconstruct &ldquo;which user, via which agent, read or changed which record, when.&rdquo;
+</div>
+
+<h3>How it fits the 10-step build (Lesson 16)</h3>
+
+<p>DynamoDB shows up at <strong>step 5 (give it memory)</strong> &mdash; as the store behind session/checkpoint state &mdash; and at <strong>step 6 (give it tools)</strong> &mdash; as the database a Gateway target Lambda reads and writes. It is not the reasoning engine and not the vector store (that is OpenSearch / Aurora pgvector for RAG); it is the fast operational store for everything the agent needs to remember or look up by key.</p>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>Access patterns written down first; keys and GSIs designed to make each one a <code>GetItem</code> or <code>Query</code></li>
+  <li>On-demand billing to start; revisit provisioned + autoscaling only once load is steady and measured</li>
+  <li>No <code>Scan</code> in request paths &mdash; add a GSI instead</li>
+  <li>Conditional writes for every create-once / idempotent operation (agent actions, trades, signups)</li>
+  <li>TTL attribute on all ephemeral data (sessions, caches, locks)</li>
+  <li>Point-in-time recovery enabled on any table holding customer or audit data</li>
+  <li>Streams enabled on audit/state tables, fanning to an immutable S3 record</li>
+  <li>Tool Lambda's IAM policy scoped to specific actions on specific tables; entitlement checked in code against the authenticated caller, never the model's arguments</li>
+  <li><code>ConsistentRead=True</code> where the agent must observe its own last write in the same turn</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on DynamoDB and its role in an agentic system.</p>
+
+  <div class="question" id="q1">
+    <p>1. Your app needs "get the 20 most recent transactions for customer 883". What DynamoDB operation should back this?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A <code>Scan</code> with a filter expression on the customer ID</label>
+      <label><input type="radio" name="q1" value="b"> A <code>Query</code> on PK = <code>CUST#883</code>, SK <code>begins_with TXN#</code>, limit 20, newest first</label>
+      <label><input type="radio" name="q1" value="c"> 20 separate <code>GetItem</code> calls in a loop</label>
+      <label><input type="radio" name="q1" value="d"> A SQL <code>SELECT ... ORDER BY date DESC LIMIT 20</code></label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. This is the core DynamoDB access pattern: items sharing a partition key, ordered by a sort key, retrieved as a bounded range. Fast and cheap regardless of table size.','Not quite. Scan reads the whole table; there is no SQL; and a GetItem loop needs keys you do not have. The right tool is Query against the partition key with a sort-key condition — which means designing the keys for this lookup up front.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. An agent tool retries after a timeout and calls <code>place_order</code> twice with the same parameters. How do you stop a duplicate order in DynamoDB?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Use eventually consistent reads so the second write is ignored</label>
+      <label><input type="radio" name="q2" value="b"> Put an idempotency item with <code>ConditionExpression="attribute_not_exists(pk)"</code> keyed by a hash of the request</label>
+      <label><input type="radio" name="q2" value="c"> Enable point-in-time recovery and restore after the fact</label>
+      <label><input type="radio" name="q2" value="d"> Switch the table to provisioned capacity</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. A conditional write that only succeeds if the key does not yet exist makes the operation safe to retry: the first call wins, the second fails the condition and is caught and ignored.','Not quite. Consistency modes, PITR, and capacity modes do not deduplicate writes. The mechanism is a conditional put on an idempotency key derived from the request — the first write creates it, retries fail the attribute_not_exists check.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. A Gateway target Lambda backs a <code>get_customer_profile</code> tool. The model calls it with <code>customer_id=999</code>. Where is it decided whether the caller may see customer 999?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> In the Lambda, checking the authenticated caller's entitlements before the GetItem</label>
+      <label><input type="radio" name="q3" value="b"> In DynamoDB, via a table-level row security policy</label>
+      <label><input type="radio" name="q3" value="c"> In the tool description, instructing the model to only request permitted IDs</label>
+      <label><input type="radio" name="q3" value="d"> Nowhere needed — the model only asks for IDs the user mentioned</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','a','Correct. Same rule as Lesson 16: the model chose the argument and cannot be trusted. The Lambda resolves the real caller identity from session/Identity context and checks entitlements before touching DynamoDB.','Not quite. DynamoDB has no row-level security, a prompt instruction is not access control, and the model can pick any value. Enforcement lives in the Lambda, against the authenticated caller.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Which job in an AgentCore system is DynamoDB a good fit for?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> The foundation model's reasoning / tool-selection loop</label>
+      <label><input type="radio" name="q4" value="b"> The vector store for Knowledge Base semantic retrieval</label>
+      <label><input type="radio" name="q4" value="c"> Session history, framework checkpoints, tool-call audit logs, and idempotency keys</label>
+      <label><input type="radio" name="q4" value="d"> Ad-hoc SQL reporting across many related financial tables</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','c','Correct. DynamoDB is the fast operational key-value store for everything the agent looks up or remembers by key — session state, checkpoints, audit events, idempotency records.','Not quite. Reasoning is the model; semantic retrieval needs a vector store (OpenSearch / Aurora pgvector); ad-hoc relational reporting is RDS. DynamoDB is the key-access store for agent memory, audit, and idempotency.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  DynamoDB is AWS's serverless NoSQL database &mdash; Cosmos DB's counterpart. You design keys around known access patterns, then CRUD is <code>put_item</code> / <code>get_item</code> / <code>query</code> / <code>update_item</code> / <code>delete_item</code>, with conditional writes for idempotency and <code>Query</code> (never <code>Scan</code>) for ranges. In an AgentCore system it plays two parts: the database a Gateway tool Lambda reads on the agent's behalf (with entitlement checks in the Lambda), and the store behind the agent's own session memory, checkpoints, and audit trail &mdash; hardened with TTL, PITR, and Streams.
+</div>
+
+<div class="lesson-nav">
+  <a href="0016-lambda-bedrock-agent-tools.html">&larr; L16: Lambda + Bedrock Agent Tools</a> &middot;
+  <a href="0005-rds.html">&larr; L5: RDS PostgreSQL</a> &middot;
+  <a href="0013-s3-object-storage.html">&larr; L13: S3 Object Storage</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: single-table design &middot; DynamoDB Streams &rarr; Lambda projections &middot; global tables for multi-region &middot; PartiQL (SQL-like) queries<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html" target="_blank">Amazon DynamoDB Developer Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html" target="_blank">DynamoDB Developer Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html" target="_blank">Core Components (tables, items, attributes)</a> &middot;
+  <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb.html" target="_blank">boto3 DynamoDB reference</a> &middot;
+  <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html" target="_blank">AgentCore Gateway Lambda targets</a> &middot;
+  <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/streamsmain.html" target="_blank">DynamoDB Streams</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

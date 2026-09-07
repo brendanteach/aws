@@ -202,14 +202,104 @@
 
 <div class="arch">
   <div class="arch-title">Example: finance-app multi-agent (supervisor pattern on AgentCore)</div>
-  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">User question — "Why did my portfolio drop last week?"</div></div></div>
-  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box orange"><div class="bname">Supervisor agent (AgentCore Runtime)</div><div class="bsub">Classifies the question, routes to the right specialist</div></div></div>
-  <div class="arch-cols">
-    <div class="arch-box purple"><div class="bname">Portfolio agent</div><div class="bsub">KB: account holdings + market data tool</div></div>
-    <div class="arch-box green"><div class="bname">Statements agent</div><div class="bsub">KB: S3 client statements</div></div>
-    <div class="arch-box blue"><div class="bname">FAQ agent</div><div class="bsub">KB: policy docs</div></div>
-  </div>
-  <div class="arch-row"><div class="arch-arrow">↓</div><div class="arch-box"><div class="bname">Guardrails on every agent's output → response to user</div></div></div>
+
+  <svg viewBox="0 0 680 630" role="img" aria-label="Architecture diagram of a sample Bedrock multi-agent system: a browser sends a question through input Guardrails to a Supervisor Agent running on AgentCore Runtime, which routes to one of three collaborator agents (Portfolio, Statements, FAQ), each backed by its own Gateway tool or Knowledge Base, sharing Memory and Identity services, with output passing back through Guardrails to the user, and traces flowing to Observability.">
+    <defs>
+      <marker id="mm-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M0,0L10,5L0,10z" style="fill:var(--aws-orange)"></path>
+      </marker>
+      <marker id="mm-arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0L10,5L0,10z" style="fill:var(--muted)"></path>
+      </marker>
+    </defs>
+
+    <!-- Browser -->
+    <rect x="240" y="8" width="200" height="40" rx="6" style="fill:white;stroke:var(--border)"></rect>
+    <text x="340" y="32" text-anchor="middle" style="font-size:13px;font-weight:bold;fill:var(--ink)">Browser / App UI</text>
+    <line x1="340" y1="48" x2="340" y2="66" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+
+    <!-- Guardrails in -->
+    <rect x="190" y="66" width="300" height="34" rx="4" style="fill:#fff8e6;stroke:var(--aws-orange)"></rect>
+    <text x="340" y="87" text-anchor="middle" style="font-size:12px;font-weight:bold;fill:var(--ink)">Guardrails — input filter</text>
+    <line x1="340" y1="100" x2="340" y2="118" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+
+    <!-- AgentCore Runtime container -->
+    <rect x="40" y="118" width="600" height="304" rx="8" style="fill:none;stroke:var(--aws-orange);stroke-width:1.5;stroke-dasharray:6,4"></rect>
+    <text x="54" y="136" style="font-size:10px;font-weight:bold;letter-spacing:0.06em;fill:var(--aws-orange);text-transform:uppercase">AgentCore Runtime</text>
+
+    <!-- Supervisor -->
+    <rect x="240" y="146" width="200" height="52" rx="6" style="fill:#fffdf5;stroke:var(--aws-orange);stroke-width:1.5"></rect>
+    <text x="340" y="167" text-anchor="middle" style="font-size:13px;font-weight:bold;fill:var(--ink)">Supervisor Agent</text>
+    <text x="340" y="183" text-anchor="middle" style="font-size:10.5px;fill:var(--muted)">classifies question, routes it</text>
+
+    <!-- fan-out lines to 3 collaborators -->
+    <line x1="290" y1="198" x2="145" y2="233" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <line x1="340" y1="198" x2="340" y2="233" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <line x1="390" y1="198" x2="535" y2="233" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+
+    <!-- Collaborator: Portfolio agent -->
+    <rect x="60" y="233" width="170" height="54" rx="6" style="fill:#fdf8ff;stroke:var(--purple);stroke-width:1.5"></rect>
+    <text x="145" y="254" text-anchor="middle" style="font-size:12.5px;font-weight:bold;fill:var(--ink)">Portfolio Agent</text>
+    <text x="145" y="270" text-anchor="middle" style="font-size:10px;fill:var(--muted)">holdings &amp; performance Q&amp;A</text>
+
+    <!-- Collaborator: Statements agent -->
+    <rect x="255" y="233" width="170" height="54" rx="6" style="fill:#f5fbf5;stroke:var(--green);stroke-width:1.5"></rect>
+    <text x="340" y="254" text-anchor="middle" style="font-size:12.5px;font-weight:bold;fill:var(--ink)">Statements Agent</text>
+    <text x="340" y="270" text-anchor="middle" style="font-size:10px;fill:var(--muted)">client statement lookup</text>
+
+    <!-- Collaborator: FAQ agent -->
+    <rect x="450" y="233" width="170" height="54" rx="6" style="fill:#f5f9fd;stroke:var(--azure-blue);stroke-width:1.5"></rect>
+    <text x="535" y="254" text-anchor="middle" style="font-size:12.5px;font-weight:bold;fill:var(--ink)">FAQ Agent</text>
+    <text x="535" y="270" text-anchor="middle" style="font-size:10px;fill:var(--muted)">general policy questions</text>
+
+    <!-- arrows down to resources -->
+    <line x1="145" y1="287" x2="145" y2="313" style="stroke:var(--purple);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <line x1="340" y1="287" x2="340" y2="313" style="stroke:var(--green);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <line x1="535" y1="287" x2="535" y2="313" style="stroke:var(--azure-blue);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+
+    <!-- Resource: Gateway tool -->
+    <rect x="60" y="313" width="170" height="42" rx="5" style="fill:white;stroke:var(--purple)"></rect>
+    <text x="145" y="331" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">Gateway → market</text>
+    <text x="145" y="345" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">data API (MCP tool)</text>
+
+    <!-- Resource: KB statements -->
+    <rect x="255" y="313" width="170" height="42" rx="5" style="fill:white;stroke:var(--green)"></rect>
+    <text x="340" y="331" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">Knowledge Base</text>
+    <text x="340" y="345" text-anchor="middle" style="font-size:10.5px;fill:var(--muted)">S3: client statements</text>
+
+    <!-- Resource: KB policy -->
+    <rect x="450" y="313" width="170" height="42" rx="5" style="fill:white;stroke:var(--azure-blue)"></rect>
+    <text x="535" y="331" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">Knowledge Base</text>
+    <text x="535" y="345" text-anchor="middle" style="font-size:10.5px;fill:var(--muted)">S3: policy documents</text>
+
+    <!-- Shared services: Memory + Identity -->
+    <rect x="60" y="378" width="270" height="34" rx="5" style="fill:#f5f4f0;stroke:var(--border)"></rect>
+    <text x="195" y="399" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">Memory — shared session + long-term context</text>
+
+    <rect x="350" y="378" width="270" height="34" rx="5" style="fill:#f5f4f0;stroke:var(--border)"></rect>
+    <text x="485" y="399" text-anchor="middle" style="font-size:10.5px;font-weight:bold;fill:var(--ink)">Identity — per-agent auth via your IdP</text>
+
+    <!-- dashed connectors from agents to shared services -->
+    <line x1="145" y1="313" x2="180" y2="378" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3,3"></line>
+    <line x1="535" y1="313" x2="500" y2="378" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3,3"></line>
+
+    <!-- Guardrails out -->
+    <line x1="340" y1="422" x2="340" y2="440" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <rect x="190" y="440" width="300" height="34" rx="4" style="fill:#fff8e6;stroke:var(--aws-orange)"></rect>
+    <text x="340" y="461" text-anchor="middle" style="font-size:12px;font-weight:bold;fill:var(--ink)">Guardrails — output filter</text>
+
+    <!-- Response -->
+    <line x1="340" y1="474" x2="340" y2="492" style="stroke:var(--aws-orange);stroke-width:1.5" marker-end="url(#mm-arrow)"></line>
+    <rect x="240" y="492" width="200" height="40" rx="6" style="fill:white;stroke:var(--border)"></rect>
+    <text x="340" y="516" text-anchor="middle" style="font-size:13px;font-weight:bold;fill:var(--ink)">Response to user</text>
+
+    <!-- Observability -->
+    <rect x="90" y="552" width="500" height="40" rx="6" style="fill:#f8f7f4;stroke:var(--muted);stroke-dasharray:5,3"></rect>
+    <text x="340" y="576" text-anchor="middle" style="font-size:11px;font-weight:bold;fill:var(--muted)">Observability — OTEL traces from every agent → CloudWatch</text>
+    <path d="M620,422 C660,470 660,530 592,568" style="fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:3,3" marker-end="url(#mm-arrow-muted)"></path>
+  </svg>
+
+  <p style="font-size:0.78rem;color:var(--muted);margin-top:0.6rem">Orange = orchestration &amp; policy layer (Runtime, Guardrails). Purple / green / blue = the three scoped collaborator agents, each with its own tool or Knowledge Base — no agent can reach another's resources directly.</p>
 </div>
 
 <p>Each specialist agent is scoped the same way you scoped IAM roles in Lesson 3 — its own Gateway tools, its own Knowledge Base, nothing broader. That containment is what keeps a multi-agent system auditable instead of a black box.</p>

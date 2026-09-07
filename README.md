@@ -31,6 +31,12 @@ Cognito (auth) · Secrets Manager · CloudWatch · X-Ray
 | 10 | [SQS + Lambda](lessons/0010-sqs-lambda.html) | Async jobs, DLQ, visibility timeout, batchItemFailures |
 | 11 | [CloudWatch](lessons/0011-cloudwatch.html) | Structured logging, alarms checklist, X-Ray tracing |
 | 12 | [CI/CD with GitHub Actions](lessons/0012-cicd.html) | OIDC auth, parallel deploy pipeline, ECS rolling deploy |
+| 13 | [S3 Object Storage](lessons/0013-s3-object-storage.html) | Buckets, storage classes, versioning, encryption |
+| 14 | [Amazon Bedrock](lessons/0014-bedrock-genai.html) | Managed FM inference, Knowledge Bases, Guardrails, PrivateLink |
+| 15 | [AgentCore, RAG & Multi-Agent](lessons/0015-agentcore-rag-multiagent.html) | AgentCore components, RAG internals, Strands orchestration patterns |
+| 16 | [Lambda + Bedrock Agent Tools](lessons/0016-lambda-bedrock-agent-tools.html) | Tool-call loop, Gateway Lambda targets, event/response contract, entitlement checks, 10-step agentic build |
+| 17 | [Amazon DynamoDB](lessons/0017-dynamodb.html) | Serverless NoSQL data model, boto3 CRUD, Query vs Scan, DynamoDB as AgentCore tool store and agent memory/audit |
+| 18 | [AWS CDK](lessons/0018-aws-cdk.html) | App/Stack/Construct model, L1/L2/L3, synth/diff/deploy/bootstrap, grants, template tests, CDK vs Terraform |
 
 Each lesson includes:
 - Azure analogies for every concept

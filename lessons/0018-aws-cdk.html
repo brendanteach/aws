@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 18 — AWS CDK: Infrastructure as Real Code</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --cdk-pink: #e6007a;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.cdk     { background: #fdeef6; border: 1px solid #f3b6d8; border-left: 4px solid var(--cdk-pink); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--cdk-pink); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--cdk-pink); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .cdk   { color: var(--cdk-pink); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .cmd-list { font-family: monospace; font-size: 0.82rem; margin: 1rem 0 1.5rem; }
+  .cmd-list div { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+  .cmd-list b { color: var(--cdk-pink); }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 18 &middot; Infrastructure as Code</div>
+  <h1>AWS CDK: Infrastructure as Real Code</h1>
+  <div class="subtitle">Define your AWS stack in Python (or TypeScript) with loops, functions, and type-checking &mdash; the CDK compiles it down to CloudFormation and deploys it.</div>
+</header>
+
+<p><a href="0009-terraform.html">Lesson 9</a> taught Terraform: infrastructure described in HCL, a purpose-built configuration language. The <strong>AWS Cloud Development Kit (CDK)</strong> takes a different bet &mdash; you write infrastructure in a <em>general-purpose programming language</em> you already know, and it <strong>synthesizes</strong> a CloudFormation template that AWS then deploys. Same goal (declarative, version-controlled, repeatable infra), different authoring experience.</p>
+
+<p>This lesson shows you how to use it end to end: the mental model, the project layout, the six commands you'll actually run, and a real stack that provisions the DynamoDB + Lambda tool from Lesson 17.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  CloudFormation is Azure's <span class="azure">ARM / Bicep</span> &mdash; a declarative template the platform reconciles. The CDK is the layer above it, like using <span class="azure">Azure Bicep modules</span> plus the imperative power of <span class="azure">Pulumi</span> or the <span class="azure">Azure SDK</span>: you write code, it emits the template. If you've written Bicep modules with parameters and loops, CDK constructs will feel familiar &mdash; just in Python instead of a DSL.
+</div>
+
+<h2>The mental model</h2>
+
+<p>Three nested concepts, plus one compile step.</p>
+
+<table>
+  <thead><tr><th>Concept</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>App</strong></td><td>The root of your CDK program. Contains one or more stacks. This is the <code>app.py</code> entry point.</td></tr>
+    <tr><td><strong>Stack</strong></td><td>A unit of deployment = one CloudFormation stack. Maps to one account + region. You deploy, update, and delete a stack as a whole.</td></tr>
+    <tr><td><strong>Construct</strong></td><td>A reusable building block representing one or more AWS resources. Constructs nest inside stacks and inside each other.</td></tr>
+    <tr><td><strong>synth</strong></td><td>The compile step: <code>cdk synth</code> runs your code and writes CloudFormation JSON/YAML to <code>cdk.out/</code>.</td></tr>
+  </tbody>
+</table>
+
+<div class="flow">
+  <div class="ftitle">What happens on deploy</div>
+  Your Python code <span class="arrow">&rarr;</span> <code>cdk synth</code> runs it <span class="arrow">&rarr;</span> CloudFormation template in <code>cdk.out/</code> <span class="arrow">&rarr;</span> assets (Lambda zips, Docker images) uploaded to the bootstrap bucket/ECR <span class="arrow">&rarr;</span> <code>cdk deploy</code> hands the template to CloudFormation <span class="arrow">&rarr;</span> CloudFormation creates / updates / deletes resources to match
+</div>
+
+<h3>Construct levels &mdash; L1, L2, L3</h3>
+
+<table>
+  <thead><tr><th>Level</th><th>Naming</th><th>What you get</th></tr></thead>
+  <tbody>
+    <tr><td><strong>L1</strong> (CFN resources)</td><td><code>CfnBucket</code>, <code>CfnTable</code></td><td>A raw 1:1 mapping of a CloudFormation resource. Every property, no defaults, no help. Escape hatch when an L2 doesn't exist yet.</td></tr>
+    <tr><td><strong>L2</strong> (curated)</td><td><code>Bucket</code>, <code>Table</code>, <code>Function</code></td><td>Sensible defaults, helper methods, and <strong>grants</strong> (<code>table.grant_read_data(fn)</code>). This is what you use 95% of the time.</td></tr>
+    <tr><td><strong>L3</strong> (patterns)</td><td><code>ApplicationLoadBalancedFargateService</code></td><td>A whole architecture in one construct &mdash; wires many resources together for a common use case.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout cdk">
+  <strong>Grants are the reason to use L2</strong>
+  Instead of hand-writing an IAM policy JSON document (Lesson 3) and attaching it, you call <code>table.grant_read_data(my_function)</code>. The CDK generates the least-privilege policy &mdash; exact ARNs, exact actions &mdash; and attaches it to the function's role. Get the wiring right in one line, no copy-pasted policy blobs.
+</div>
+
+<h2>Setup &mdash; one time per machine, one time per account</h2>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Install the CLI.</strong> <code>npm install -g aws-cdk</code> (the CLI is Node-based even if your project is Python). Check with <code>cdk --version</code>.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Init the project.</strong> <code>mkdir finapp-infra &amp;&amp; cd finapp-infra &amp;&amp; cdk init app --language python</code>. Then <code>python -m venv .venv</code>, activate it, <code>pip install -r requirements.txt</code>.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Bootstrap the account/region.</strong> <code>cdk bootstrap aws://123456789012/us-east-1</code>. This creates a small <code>CDKToolkit</code> stack &mdash; an S3 bucket and ECR repo for assets, plus deploy roles. Do it once per account+region combination.</p></div></div>
+</div>
+
+<h3>Project layout after <code>cdk init</code></h3>
+
+<pre><span class="file-label">finapp-infra/</span>
+app.py                  <span class="cmt"># entry point — instantiates the app and stacks</span>
+cdk.json                <span class="cmt"># tells the CLI how to run your app ("python3 app.py")</span>
+requirements.txt        <span class="cmt"># aws-cdk-lib, constructs</span>
+finapp_infra/
+  __init__.py
+  finapp_infra_stack.py <span class="cmt"># your stack definition</span>
+tests/
+  unit/test_finapp_infra_stack.py</pre>
+
+<h2>Writing a stack</h2>
+
+<p>Here is a real stack: the DynamoDB table and tool Lambda from Lesson 17, wired together with a grant.</p>
+
+<pre><span class="file-label">finapp_infra/agent_tools_stack.py</span>
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> Stack, Duration, RemovalPolicy
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_dynamodb <span class="kw">as</span> dynamodb
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_lambda <span class="kw">as</span> _lambda
+<span class="kw">from</span> constructs <span class="kw">import</span> Construct
+
+
+<span class="kw">class</span> <span class="cls">AgentToolsStack</span>(Stack):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, scope: Construct, cid: <span class="cls">str</span>, **kwargs):
+        <span class="fn">super</span>().<span class="fn">__init__</span>(scope, cid, **kwargs)
+
+        <span class="cmt"># L2 DynamoDB table — on-demand, PK+SK, encryption on by default</span>
+        table = dynamodb.<span class="cls">Table</span>(self, <span class="str">"Customers"</span>,
+            partition_key=dynamodb.<span class="cls">Attribute</span>(name=<span class="str">"pk"</span>, type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.<span class="cls">Attribute</span>(name=<span class="str">"sk"</span>, type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=<span class="kw">True</span>,
+            removal_policy=RemovalPolicy.RETAIN,   <span class="cmt"># keep the data if the stack is deleted</span>
+        )
+
+        <span class="cmt"># L2 Lambda — code bundled from a local dir and uploaded automatically</span>
+        fn = _lambda.<span class="cls">Function</span>(self, <span class="str">"GetCustomerProfile"</span>,
+            runtime=_lambda.Runtime.PYTHON_3_13,
+            handler=<span class="str">"handler.lambda_handler"</span>,
+            code=_lambda.Code.<span class="fn">from_asset</span>(<span class="str">"lambda/get_customer_profile"</span>),
+            timeout=Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
+            environment={<span class="str">"TABLE_NAME"</span>: table.table_name},
+        )
+
+        <span class="cmt"># The grant — generates a least-privilege IAM policy and attaches it</span>
+        table.<span class="fn">grant_read_data</span>(fn)</pre>
+
+<pre><span class="file-label">app.py</span>
+<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
+<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+
+app = cdk.<span class="cls">App</span>()
+
+<span class="cmt"># One stack per environment — different account/region, same code</span>
+AgentToolsStack(app, <span class="str">"AgentTools-staging"</span>,
+    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"111111111111"</span>, region=<span class="str">"us-east-1"</span>))
+AgentToolsStack(app, <span class="str">"AgentTools-prod"</span>,
+    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"222222222222"</span>, region=<span class="str">"us-east-1"</span>))
+
+app.<span class="fn">synth</span>()</pre>
+
+<div class="callout cdk">
+  <strong>&ldquo;Real code&rdquo; means real code</strong>
+  Need five identical queues with different names? A <code>for</code> loop. Need a value computed from another? A function. Want to stop a footgun? Raise an exception in your construct. Config that Terraform expresses with <code>count</code>, <code>for_each</code>, and locals, CDK expresses with the language itself &mdash; and your editor autocompletes every property and flags typos before <code>synth</code>.
+</div>
+
+<h2>The workflow &mdash; six commands</h2>
+
+<div class="cmd-list">
+  <div><b>cdk bootstrap</b> &nbsp;&mdash; one-time per account/region; creates the asset bucket + deploy roles</div>
+  <div><b>cdk synth</b> &nbsp;&mdash; run your code, emit the CloudFormation template to <code>cdk.out/</code>. Catches code errors early.</div>
+  <div><b>cdk diff</b> &nbsp;&mdash; compare your code against what's deployed. <em>Read this every time before deploy.</em></div>
+  <div><b>cdk deploy</b> &nbsp;&mdash; upload assets, submit the template, watch CloudFormation apply it. <code>--require-approval</code> prompts on IAM changes.</div>
+  <div><b>cdk watch</b> &nbsp;&mdash; dev-loop mode: redeploy automatically on file save (hotswaps Lambda code without a full CFN update)</div>
+  <div><b>cdk destroy</b> &nbsp;&mdash; delete the stack. Resources with <code>RETAIN</code> removal policy survive.</div>
+</div>
+
+<h3>A typical change</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p>Edit the stack code, add the new resource or property.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><code>cdk diff AgentTools-staging</code> &mdash; confirm the change list is exactly what you expect (watch for unintended replacements).</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><code>cdk deploy AgentTools-staging</code> &mdash; apply to staging, test.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p>In CI, on merge to main: <code>cdk diff</code> as a PR comment, then <code>cdk deploy AgentTools-prod --require-approval never</code> after approval.</p></div></div>
+</div>
+
+<h2>Testing infrastructure</h2>
+
+<p>Because it's code, you can unit-test the synthesized template with assertions &mdash; catch a missing encryption flag or an over-broad policy before it ships.</p>
+
+<pre><span class="file-label">tests/unit/test_agent_tools_stack.py</span>
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> App
+<span class="kw">from</span> aws_cdk.assertions <span class="kw">import</span> Template, Match
+<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+
+<span class="kw">def</span> <span class="fn">test_table_has_pitr_and_retain</span>():
+    template = Template.<span class="fn">from_stack</span>(AgentToolsStack(App(), <span class="str">"t"</span>))
+
+    template.<span class="fn">has_resource_properties</span>(<span class="str">"AWS::DynamoDB::Table"</span>, {
+        <span class="str">"PointInTimeRecoverySpecification"</span>: {<span class="str">"PointInTimeRecoveryEnabled"</span>: <span class="kw">True</span>},
+    })
+    template.<span class="fn">has_resource</span>(<span class="str">"AWS::DynamoDB::Table"</span>, {<span class="str">"DeletionPolicy"</span>: <span class="str">"Retain"</span>})
+
+<span class="kw">def</span> <span class="fn">test_lambda_cannot_write_the_table</span>():
+    template = Template.<span class="fn">from_stack</span>(AgentToolsStack(App(), <span class="str">"t"</span>))
+    <span class="cmt"># grant_read_data must NOT include PutItem / UpdateItem / DeleteItem</span>
+    template.<span class="fn">resource_count_is</span>(<span class="str">"AWS::IAM::Policy"</span>, <span class="num">1</span>)</pre>
+
+<h2>CDK vs Terraform vs raw CloudFormation</h2>
+
+<table>
+  <thead><tr><th></th><th class="cdk">AWS CDK</th><th>Terraform</th><th>CloudFormation</th></tr></thead>
+  <tbody>
+    <tr><td>Authoring language</td><td>Python, TS, Java, Go, C#</td><td>HCL</td><td>JSON / YAML</td></tr>
+    <tr><td>Logic (loops, conditionals)</td><td>The language itself</td><td><code>count</code>, <code>for_each</code>, functions</td><td>Very limited</td></tr>
+    <tr><td>State</td><td>CloudFormation manages it</td><td>You manage a state file (Lesson 9)</td><td>AWS manages it</td></tr>
+    <tr><td>Multi-cloud</td><td>AWS only</td><td>Any provider</td><td>AWS only</td></tr>
+    <tr><td>IAM wiring</td><td><code>.grant_*()</code> generates least-privilege</td><td>Write the policy yourself</td><td>Write the policy yourself</td></tr>
+    <tr><td>Lambda/Docker assets</td><td>Bundled &amp; uploaded automatically</td><td>Manual (zip, S3, hash) or extra modules</td><td>Manual</td></tr>
+    <tr><td>Drift &amp; import</td><td>Weaker story than Terraform</td><td>Strong (<code>import</code>, <code>plan</code> shows drift)</td><td>Basic drift detection</td></tr>
+  </tbody>
+</table>
+
+<p>Rule of thumb: <strong>CDK</strong> if your team is app developers, the stack is AWS-only, and you lean on Lambda / containers / lots of IAM wiring. <strong>Terraform</strong> if you need multi-cloud, a strong import/drift story, or an ops team already fluent in HCL. They can coexist &mdash; CDK for the app-adjacent stacks, Terraform for the network/account foundation.</p>
+
+<h2>Finance-context callouts</h2>
+
+<div class="callout finance">
+  <strong>Removal policy on every stateful resource</strong>
+  Databases, buckets, and log groups holding customer or audit data get <code>removal_policy=RETAIN</code> (and <code>RETAIN_ON_UPDATE_OR_DELETE</code> for buckets). A fat-fingered <code>cdk destroy</code> or a logical-ID change then can't take the data with it. Pair with <code>deletion_protection</code> where the resource supports it.
+</div>
+
+<div class="callout finance">
+  <strong><code>cdk diff</code> is a control, not a courtesy</strong>
+  Require it as a reviewed artifact in the deploy pipeline &mdash; posted on the PR, read by a second person &mdash; before any prod <code>deploy</code>. The dangerous line in a diff is a <strong>replacement</strong> (<code>[-/+]</code>): CloudFormation will delete and recreate the resource, which for a database or queue means data loss or an outage.
+</div>
+
+<div class="callout finance">
+  <strong>Policy-as-tests with cdk-nag</strong>
+  Add the <code>cdk-nag</code> AwsSolutions pack to your app and <code>synth</code> fails if a resource violates a rule &mdash; unencrypted storage, a wildcard IAM action, a public bucket, missing log retention. It's the CDK equivalent of a compliance checklist, enforced at build time instead of found in an audit.
+</div>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>One stack per environment, parameterised by <code>env</code> account/region &mdash; never branching on a string inside the stack for prod vs staging differences that matter</li>
+  <li>L2 constructs by default; L1 (<code>Cfn*</code>) only as a documented escape hatch</li>
+  <li>IAM wired with <code>.grant_*()</code> methods, not hand-written policy documents</li>
+  <li><code>removal_policy=RETAIN</code> + deletion protection on every database, bucket, and audit log group</li>
+  <li><code>cdk diff</code> generated in CI and reviewed before every prod deploy; replacements (<code>[-/+]</code>) treated as blocking until understood</li>
+  <li>Assertion tests on the synthesized template for the invariants that matter (encryption, PITR, no wildcard policies)</li>
+  <li><code>cdk-nag</code> AwsSolutions rules wired into <code>synth</code></li>
+  <li>Bootstrap stack version kept current; deploy role permissions scoped, not <code>AdministratorAccess</code>, once past initial setup</li>
+  <li>Stateful resources (RDS, DynamoDB) in a separate long-lived stack from fast-changing compute, to limit blast radius</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on using the AWS CDK.</p>
+
+  <div class="question" id="q1">
+    <p>1. What does <code>cdk synth</code> actually produce?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> A Terraform state file describing current resources</label>
+      <label><input type="radio" name="q1" value="b"> A CloudFormation template that CloudFormation then deploys</label>
+      <label><input type="radio" name="q1" value="c"> Live AWS resources, created directly by the CDK CLI</label>
+      <label><input type="radio" name="q1" value="d"> A cost estimate for the stack</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. The CDK is a synthesizer: your code runs and emits a CloudFormation template into cdk.out/. cdk deploy then hands that template to CloudFormation, which does the actual provisioning.','Not quite. The CDK does not talk to resource APIs directly and has no state file of its own — it compiles your code into a CloudFormation template, and CloudFormation manages state and provisioning.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. You want a Lambda to read (but not write) a DynamoDB table. What's the idiomatic CDK way?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> Write an IAM policy JSON with <code>dynamodb:GetItem</code>/<code>Query</code> and attach it to the function role</label>
+      <label><input type="radio" name="q2" value="b"> <code>table.grant_read_data(fn)</code></label>
+      <label><input type="radio" name="q2" value="c"> Give the function <code>AmazonDynamoDBFullAccess</code> and rely on the app to behave</label>
+      <label><input type="radio" name="q2" value="d"> Put the table ARN in an environment variable and skip IAM</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. L2 grant methods generate a least-privilege policy scoped to that exact table and the read actions, and attach it to the function role — one line, no hand-maintained JSON.','Not quite. Hand-writing the policy works but is exactly what grants exist to replace; a managed full-access policy violates least privilege; and skipping IAM means the call fails. The idiom is table.grant_read_data(fn).')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. In a <code>cdk diff</code> before a prod deploy, why is a resource marked <code>[-/+]</code> (replacement) the line to stop on?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> It means the deploy will be slower than usual</label>
+      <label><input type="radio" name="q3" value="b"> CloudFormation will delete the existing resource and create a new one — data loss / downtime for a database or queue</label>
+      <label><input type="radio" name="q3" value="c"> It indicates a syntax error in your stack code</label>
+      <label><input type="radio" name="q3" value="d"> It always means the deploy will fail and roll back</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. A replacement changes an immutable property, so CloudFormation provisions a new resource and destroys the old one. For a stateful resource that is data loss or an outage — verify it is intended, and that RETAIN / snapshots protect the data.','Not quite. Replacement is about lifecycle, not speed or syntax: CloudFormation must destroy and recreate the resource because an immutable property changed. On a database or queue that is the dangerous case.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. When does <code>cdk bootstrap</code> need to be run?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Before every <code>cdk deploy</code></label>
+      <label><input type="radio" name="q4" value="b"> Once per account + region combination you deploy into</label>
+      <label><input type="radio" name="q4" value="c"> Only when using L3 pattern constructs</label>
+      <label><input type="radio" name="q4" value="d"> Never — it's optional and just adds cost</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Bootstrap creates the CDKToolkit stack — an asset S3 bucket, an ECR repo, and deploy roles — that the CDK needs in that account/region. Do it once per account+region; re-run only to pick up a newer bootstrap version.','Not quite. Bootstrap is not per-deploy and not construct-specific. It provisions the shared assets/roles the CDK needs in a given account and region, once per that combination.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  The CDK lets you author AWS infrastructure in Python or TypeScript: an <strong>App</strong> holds <strong>Stacks</strong> (one CloudFormation stack each), which hold <strong>Constructs</strong> (L2 curated ones by default). <code>cdk synth</code> compiles code to a template; <code>cdk diff</code> shows the change (stop on replacements); <code>cdk deploy</code> applies it via CloudFormation; <code>cdk bootstrap</code> is a one-time per account/region setup. The payoff over Terraform is language-native logic, autocompletion, testable templates, automatic Lambda/Docker asset bundling, and <code>.grant_*()</code> methods that write least-privilege IAM for you. In finance: RETAIN removal policies, reviewed diffs as a deploy gate, and cdk-nag rules enforced at build time.
+</div>
+
+<div class="lesson-nav">
+  <a href="0009-terraform.html">&larr; L9: Terraform</a> &middot;
+  <a href="0003-iam.html">&larr; L3: IAM</a> &middot;
+  <a href="0017-dynamodb.html">&larr; L17: DynamoDB</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: CDK Pipelines (self-mutating CI/CD) &middot; custom L3 constructs for your team &middot; <code>cdk import</code> for existing resources &middot; CDK for Terraform (CDKTF) if you need the Terraform engine<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/cdk/v2/guide/home.html" target="_blank">AWS CDK v2 Developer Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/cdk/v2/guide/home.html" target="_blank">AWS CDK v2 Developer Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/cdk/v2/guide/constructs.html" target="_blank">Constructs (L1/L2/L3)</a> &middot;
+  <a href="https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html" target="_blank">Bootstrapping</a> &middot;
+  <a href="https://docs.aws.amazon.com/cdk/v2/guide/testing.html" target="_blank">Testing constructs</a> &middot;
+  <a href="https://github.com/cdklabs/cdk-nag" target="_blank">cdk-nag</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
