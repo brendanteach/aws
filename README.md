@@ -57,8 +57,8 @@ Open [index.html](index.html) in a browser to navigate the series, or open any l
 To view with working navigation links, clone and open locally:
 
 ```bash
-git clone https://github.com/liubrend/teach-aws.git
-cd teach-aws
+git clone https://github.com/brendanteach/aws.git
+cd aws
 open index.html   # macOS
 start index.html  # Windows
 ```
@@ -66,7 +66,7 @@ start index.html  # Windows
 ## Structure
 
 ```
-teach-aws/
+aws/
 ├── index.html          # lesson index with descriptions
 └── lessons/
     ├── 0001-aws-architecture-map.html
