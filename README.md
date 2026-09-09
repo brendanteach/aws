@@ -1,4 +1,4 @@
-# AWS Architecture — 12-Lesson Series
+# AWS Architecture — 12 Core + 8 Bonus Lessons
 
 A self-paced curriculum for building a production-grade financial web app on AWS. Taught by analogy to Azure — if you know Azure, this series maps every concept to what you already understand.
 
