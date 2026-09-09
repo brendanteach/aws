@@ -35,8 +35,10 @@ Cognito (auth) · Secrets Manager · CloudWatch · X-Ray
 | 14 | [Amazon Bedrock](lessons/0014-bedrock-genai.html) | Managed FM inference, Knowledge Bases, Guardrails, PrivateLink |
 | 15 | [AgentCore, RAG & Multi-Agent](lessons/0015-agentcore-rag-multiagent.html) | AgentCore components, RAG internals, Strands orchestration patterns |
 | 16 | [Lambda + Bedrock Agent Tools](lessons/0016-lambda-bedrock-agent-tools.html) | Tool-call loop, Gateway Lambda targets, event/response contract, entitlement checks, 10-step agentic build |
-| 17 | [Amazon DynamoDB](lessons/0017-dynamodb.html) | Serverless NoSQL data model, boto3 CRUD, Query vs Scan, DynamoDB as AgentCore tool store and agent memory/audit |
+| 17 | [Amazon DynamoDB](lessons/0017-dynamodb.html) | Serverless NoSQL data model, boto3 CRUD, Query vs Scan, table config, single- vs multi-table design + the metrics, DynamoDB as AgentCore tool store and agent memory/audit |
 | 18 | [AWS CDK](lessons/0018-aws-cdk.html) | App/Stack/Construct model, L1/L2/L3, synth/diff/deploy/bootstrap, grants, template tests, CDK vs Terraform |
+| 19 | [AWS AI-DLC](lessons/0019-ai-dlc.html) | AI-Driven Development Lifecycle — bolts, mob elaboration/construction, AI Pods, Inception/Construction/Operation, steering files, pros/cons |
+| 20 | [Amazon SageMaker AI](lessons/0020-sagemaker.html) | Managed ML platform, train/deploy/monitor loop, JumpStart LLM hosting & fine-tuning, SageMaker vs Bedrock, inference options, model governance |
 
 Each lesson includes:
 - Azure analogies for every concept

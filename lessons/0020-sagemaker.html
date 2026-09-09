@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 20 — Amazon SageMaker AI: Train, Host, and Fine-Tune Your Own Models</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --sm: #0d9488;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.sm      { background: #e8f6f4; border: 1px solid #a9ddd6; border-left: 4px solid var(--sm); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--sm); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--sm); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .sm-c  { color: var(--sm); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 20 &middot; Generative AI</div>
+  <h1>Amazon SageMaker AI: Train, Host, and Fine-Tune Your Own Models</h1>
+  <div class="subtitle">Bedrock hands you a model behind an API. SageMaker hands you the machine shop &mdash; to train a fraud model from scratch, or host and fine-tune an open-weight LLM that stays entirely inside your account.</div>
+</header>
+
+<p><a href="0014-bedrock-genai.html">Lesson 14</a> was Bedrock: call a foundation model over an API, no infrastructure, pay per token. That's the right tool when someone else's model already does what you need. <strong>SageMaker AI</strong> is for when it doesn't &mdash; when you need to train a model on your own labelled data (fraud, credit risk, churn), or run a specific open-weight LLM on hardware you control, or fine-tune one on proprietary data that can't leave your account.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  SageMaker AI is <span class="azure">Azure Machine Learning</span>, almost feature-for-feature. SageMaker Studio &asymp; the <span class="azure">Azure ML Studio</span> workspace; training jobs &asymp; <span class="azure">AML command jobs</span> on compute clusters; real-time endpoints &asymp; <span class="azure">AML managed online endpoints</span>; SageMaker Pipelines &asymp; <span class="azure">AML pipelines</span>; Model Registry, Feature Store, and drift monitoring all have direct counterparts. JumpStart &asymp; the <span class="azure">Azure AI Foundry model catalog</span>.
+</div>
+
+<div class="callout warn">
+  <strong>A naming note</strong>
+  In December 2024 AWS renamed the original service to <strong>Amazon SageMaker AI</strong> (the ML platform this lesson covers) and gave the name <strong>Amazon SageMaker</strong> to a broader umbrella &mdash; a unified studio spanning data, SQL analytics, and AI, wrapping SageMaker AI together with EMR, Glue, Redshift, and Athena. When someone says &ldquo;SageMaker&rdquo; and means model training, they mean <strong>SageMaker AI</strong>.
+</div>
+
+<h2>What it is</h2>
+
+<p>A managed platform for the full ML lifecycle. The through-line: <strong>you bring the code (a training script or a container); SageMaker runs the infrastructure</strong> &mdash; provisioning instances for a job, running it, copying the result to S3, and tearing the instances down.</p>
+
+<div class="flow">
+  <div class="ftitle">The core loop</div>
+  Explore data in a <strong>Studio notebook</strong> <span class="arrow">&rarr;</span> launch a <strong>training job</strong> (ephemeral GPU/CPU instances, script + data from S3) <span class="arrow">&rarr;</span> model artifact lands in S3 <span class="arrow">&rarr;</span> register it in the <strong>Model Registry</strong> <span class="arrow">&rarr;</span> <strong>deploy</strong> to an endpoint <span class="arrow">&rarr;</span> your app calls the endpoint <span class="arrow">&rarr;</span> <strong>Model Monitor</strong> watches for drift
+</div>
+
+<h3>The component map</h3>
+
+<table>
+  <thead><tr><th>Component</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Studio</strong></td><td>The web IDE &mdash; notebooks, job dashboards, the visual tools. Your workbench.</td></tr>
+    <tr><td><strong>JumpStart</strong></td><td>A hub of pre-trained models, including open-weight LLMs (Llama, Mistral, DeepSeek, etc.). One call to deploy or fine-tune.</td></tr>
+    <tr><td><strong>Training jobs</strong></td><td>Ephemeral compute for training. Bring a script or container; SageMaker runs it on instances it manages, then shuts them down. Managed Spot cuts cost up to ~90%.</td></tr>
+    <tr><td><strong>Automatic Model Tuning</strong></td><td>Hyperparameter search &mdash; runs many training jobs to find the best config.</td></tr>
+    <tr><td><strong>Inference endpoints</strong></td><td>Real-time, serverless, asynchronous, or batch. Where your model actually serves predictions.</td></tr>
+    <tr><td><strong>Pipelines</strong></td><td>ML workflow orchestration &mdash; data prep &rarr; train &rarr; evaluate &rarr; register &rarr; deploy, as a repeatable DAG. The CI/CD of ML (Lesson 12 analogy).</td></tr>
+    <tr><td><strong>Model Registry</strong></td><td>Versioned model catalogue with an approval workflow (pending &rarr; approved &rarr; deployed).</td></tr>
+    <tr><td><strong>Feature Store</strong></td><td>A central store of computed features, shared between training and inference so they stay consistent.</td></tr>
+    <tr><td><strong>Model Monitor</strong></td><td>Scheduled checks for data-quality and prediction drift against a baseline.</td></tr>
+    <tr><td><strong>Clarify</strong></td><td>Bias detection (pre- and post-training) and feature-attribution explainability (SHAP).</td></tr>
+    <tr><td><strong>HyperPod</strong></td><td>Persistent, self-healing GPU clusters for large-scale distributed training / fine-tuning / inference of foundation models. (Standard training jobs are ephemeral; HyperPod clusters persist.)</td></tr>
+  </tbody>
+</table>
+
+<h2>SageMaker AI vs Bedrock &mdash; the decision</h2>
+
+<p>For anything AI-shaped, this is the first fork in the road.</p>
+
+<table>
+  <thead><tr><th></th><th class="aws">Bedrock (Lesson 14)</th><th class="sm-c">SageMaker AI</th></tr></thead>
+  <tbody>
+    <tr><td>What you get</td><td>A model behind an API</td><td>Infrastructure to build, host, and tune models</td></tr>
+    <tr><td>Infra to manage</td><td>None (serverless)</td><td>Instances, endpoints, autoscaling (or serverless inference)</td></tr>
+    <tr><td>Billing</td><td>Per token / per request</td><td>Per instance-hour the endpoint runs, plus training time</td></tr>
+    <tr><td>Model choice</td><td>The curated Bedrock catalogue</td><td>Any open-weight model, your own trained model, or a fine-tune</td></tr>
+    <tr><td>Custom / classical ML</td><td>No &mdash; FMs only</td><td>Yes &mdash; XGBoost, PyTorch, scikit-learn, anything</td></tr>
+    <tr><td>Fine-tuning</td><td>Limited, managed, per-model</td><td>Full control &mdash; LoRA/QLoRA, full fine-tune, your recipe</td></tr>
+    <tr><td>Reach for it when</td><td>A catalogue model already does the job</td><td>You need a custom model, a specific open model, or data/infra isolation Bedrock can't give</td></tr>
+  </tbody>
+</table>
+
+<div class="callout sm">
+  <strong>They compose</strong>
+  A common finance pattern: Bedrock (or an AgentCore agent, Lesson 15) for the conversational layer, calling a <strong>SageMaker endpoint as a tool</strong> for the thing only your model can do &mdash; score this transaction for fraud, predict this customer's default probability. Same tool-Lambda pattern as Lesson 16, with the Lambda calling <code>invoke_endpoint</code> instead of a database.
+</div>
+
+<h2>How to use it &mdash; track A: a classical model for the app</h2>
+
+<p>Fraud scoring, credit risk, churn prediction, document classification &mdash; supervised learning on your labelled data. The SageMaker Python SDK is three moves: <code>fit</code>, <code>deploy</code>, <code>predict</code>.</p>
+
+<pre><span class="file-label">train + deploy an XGBoost fraud model</span>
+<span class="kw">import</span> sagemaker
+<span class="kw">from</span> sagemaker.xgboost <span class="kw">import</span> XGBoost
+
+sess = sagemaker.<span class="fn">Session</span>()
+role = <span class="str">"arn:aws:iam::123456789012:role/SageMakerExecutionRole"</span>
+
+<span class="cmt"># 1. Training job — ephemeral instance runs train.py, model goes to S3</span>
+est = <span class="cls">XGBoost</span>(
+    entry_point=<span class="str">"train.py"</span>,
+    framework_version=<span class="str">"1.7-1"</span>,
+    instance_type=<span class="str">"ml.m5.xlarge"</span>,
+    instance_count=<span class="num">1</span>,
+    role=role,
+    use_spot_instances=<span class="kw">True</span>,        <span class="cmt"># up to ~90% cheaper</span>
+    max_run=<span class="num">3600</span>, max_wait=<span class="num">7200</span>,
+    hyperparameters={<span class="str">"max_depth"</span>: <span class="num">6</span>, <span class="str">"eta"</span>: <span class="num">0.2</span>, <span class="str">"num_round"</span>: <span class="num">200</span>},
+)
+est.<span class="fn">fit</span>({<span class="str">"train"</span>: <span class="str">"s3://fin-ml/fraud/train/"</span>, <span class="str">"validation"</span>: <span class="str">"s3://fin-ml/fraud/val/"</span>})
+
+<span class="cmt"># 2. Deploy — serverless so you pay only per request, not per idle hour</span>
+<span class="kw">from</span> sagemaker.serverless <span class="kw">import</span> ServerlessInferenceConfig
+predictor = est.<span class="fn">deploy</span>(
+    serverless_inference_config=<span class="cls">ServerlessInferenceConfig</span>(memory_size_in_mb=<span class="num">2048</span>, max_concurrency=<span class="num">20</span>),
+    endpoint_name=<span class="str">"fraud-scorer"</span>,
+)
+
+<span class="cmt"># 3. Predict (from the app: boto3 sagemaker-runtime.invoke_endpoint)</span>
+score = predictor.<span class="fn">predict</span>([[<span class="num">1</span>, <span class="num">0</span>, <span class="num">419.50</span>, <span class="num">3</span>, <span class="num">1</span>]])   <span class="cmt"># -> P(fraud)</span></pre>
+
+<pre><span class="file-label">from the API service — no SDK, just boto3</span>
+<span class="kw">import</span> boto3, json
+rt = boto3.<span class="fn">client</span>(<span class="str">"sagemaker-runtime"</span>)
+
+resp = rt.<span class="fn">invoke_endpoint</span>(
+    EndpointName=<span class="str">"fraud-scorer"</span>,
+    ContentType=<span class="str">"application/json"</span>,
+    Body=json.<span class="fn">dumps</span>({<span class="str">"instances"</span>: [features]}),
+)
+p_fraud = json.<span class="fn">loads</span>(resp[<span class="str">"Body"</span>].<span class="fn">read</span>())</pre>
+
+<h2>How to use it &mdash; track B: host or fine-tune an LLM</h2>
+
+<p>When you need a <em>specific</em> open-weight model, or a fine-tune on data that can't go to a third-party API, JumpStart deploys it to your own endpoint in a couple of lines.</p>
+
+<pre><span class="file-label">deploy an open-weight LLM to a private endpoint</span>
+<span class="kw">from</span> sagemaker.jumpstart.model <span class="kw">import</span> JumpStartModel
+
+model = <span class="cls">JumpStartModel</span>(model_id=<span class="str">"meta-textgeneration-llama-3-1-8b-instruct"</span>)
+predictor = model.<span class="fn">deploy</span>(instance_type=<span class="str">"ml.g5.2xlarge"</span>)   <span class="cmt"># runs in your VPC, your account</span>
+
+out = predictor.<span class="fn">predict</span>({
+    <span class="str">"inputs"</span>: <span class="str">"Summarise this disclosure in two sentences: ..."</span>,
+    <span class="str">"parameters"</span>: {<span class="str">"max_new_tokens"</span>: <span class="num">120</span>, <span class="str">"temperature"</span>: <span class="num">0.2</span>},
+})</pre>
+
+<p>Fine-tuning is the same object with training data: <code>JumpStartEstimator(model_id=...).fit({"training": "s3://.../instructions/"})</code> &mdash; JumpStart applies a LoRA recipe by default, and the result registers like any other model.</p>
+
+<div class="callout sm">
+  <strong>When track B beats Bedrock</strong>
+  Choose SageMaker hosting for an LLM when: the model you want isn't in the Bedrock catalogue; you need the weights pinned to an exact version for reproducibility/audit; you have steady high volume where a reserved instance beats per-token pricing; or policy requires the model and all inference to sit inside your VPC with no shared-service data path. Otherwise Bedrock is less to run.
+</div>
+
+<h2>Inference options &mdash; pick per workload</h2>
+
+<table>
+  <thead><tr><th>Option</th><th>Shape</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Real-time endpoint</strong></td><td>Always-on instances, ms latency</td><td>Synchronous app calls: score a login, a transaction, a chat turn</td></tr>
+    <tr><td><strong>Serverless inference</strong></td><td>Scales to zero, pay per request</td><td>Spiky or low/uneven traffic; dev and internal tools</td></tr>
+    <tr><td><strong>Asynchronous inference</strong></td><td>Queue + S3 in/out, near-real-time</td><td>Large payloads or long inferences (documents, big batches of rows)</td></tr>
+    <tr><td><strong>Batch transform</strong></td><td>No endpoint; job over a whole S3 dataset</td><td>Nightly scoring of every account; back-testing</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>The cost trap: real-time endpoints bill 24/7</strong>
+  Unlike Bedrock's per-token model, a real-time endpoint charges for every instance-hour it exists, busy or idle &mdash; a single <code>ml.g5.2xlarge</code> left running is real monthly money. Defences: prefer <strong>serverless inference</strong> for anything not constantly hit; set <strong>autoscaling</strong> (including scale-in) on real-time endpoints; use <strong>Managed Spot</strong> for training; and shut down Studio notebook instances when you leave. Put an alarm on endpoint <code>InvocationsPerInstance</code> so an idle endpoint gets noticed.
+</div>
+
+<h2>Finance-context callouts</h2>
+
+<div class="callout finance">
+  <strong>Model governance is a first-class feature</strong>
+  Use the <strong>Model Registry</strong> approval workflow so no model reaches production without a named sign-off, and attach a <strong>Model Card</strong> recording intended use, training data, evaluation results, and limitations &mdash; the documentation model-risk-management reviews (SR 11-7) will ask for.
+</div>
+
+<div class="callout finance">
+  <strong>Clarify for fair lending and adverse-action</strong>
+  For any model influencing a credit decision, run <strong>Clarify</strong> pre-training (dataset bias across protected classes) and post-training (outcome disparity), and keep the SHAP feature-attribution reports &mdash; they are the basis for the specific-reasons an adverse-action notice must give under ECOA / Reg B.
+</div>
+
+<div class="callout finance">
+  <strong>Keep it in the VPC</strong>
+  Run training jobs and endpoints in <strong>VPC-only mode with network isolation</strong> &mdash; no internet route, traffic to S3 / ECR over VPC endpoints. Training data, model weights, and inference traffic never leave your account. Encrypt volumes and artifacts with a customer-managed KMS key.
+</div>
+
+<div class="callout finance">
+  <strong>Drift is a risk event</strong>
+  Wire <strong>Model Monitor</strong> to compare live inputs and predictions against the training baseline on a schedule, alarming to CloudWatch on breach. A credit or fraud model silently degrading as the world shifts is both a loss problem and a model-risk finding &mdash; you want it paged, not discovered in an audit.
+</div>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>Bedrock-vs-SageMaker decision made deliberately per use case &mdash; SageMaker only where a catalogue model, per-token pricing, or shared-service inference genuinely doesn't fit</li>
+  <li>Real-time endpoints have autoscaling with scale-in; everything else on serverless inference or batch transform</li>
+  <li>Managed Spot enabled for training jobs; Studio notebook instances auto-shut-down configured</li>
+  <li>Training jobs and endpoints in VPC-only mode with network isolation; S3/ECR via VPC endpoints</li>
+  <li>Volumes and model artifacts encrypted with a customer-managed KMS key</li>
+  <li>Every production model goes through the Model Registry approval workflow with a Model Card</li>
+  <li>Clarify bias + explainability reports generated and retained for any decisioning model</li>
+  <li>Model Monitor schedules active with CloudWatch alarms on drift</li>
+  <li>Training/deploy wrapped in a SageMaker Pipeline so runs are repeatable and lineage is tracked</li>
+  <li>Endpoint IAM scoped; CloudTrail on for the full train&rarr;register&rarr;deploy&rarr;invoke audit trail</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Five questions on Amazon SageMaker AI.</p>
+
+  <div class="question" id="q1">
+    <p>1. Your team wants a chatbot that answers policy questions using Claude. Bedrock or SageMaker AI?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> SageMaker AI &mdash; deploy Claude to a real-time endpoint</label>
+      <label><input type="radio" name="q1" value="b"> Bedrock &mdash; a catalogue model already does the job, with no infrastructure to run</label>
+      <label><input type="radio" name="q1" value="c"> SageMaker AI &mdash; you must fine-tune before using any model</label>
+      <label><input type="radio" name="q1" value="d"> Neither &mdash; use a Lambda with a hard-coded FAQ</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. When a Bedrock catalogue model does what you need, Bedrock is the lighter path: serverless, per-token, no endpoints to size or scale. SageMaker earns its complexity only when Bedrock cannot give you the model, price model, or isolation you need.','Not quite. Claude is a Bedrock catalogue model and RAG over policy docs is a standard Bedrock/Knowledge Base pattern. Standing up a SageMaker endpoint here would be infrastructure you do not need.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. What is a SageMaker training job?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> A long-lived server you SSH into to run experiments</label>
+      <label><input type="radio" name="q2" value="b"> Ephemeral compute: SageMaker provisions instances, runs your script on data from S3, writes the model to S3, then tears the instances down</label>
+      <label><input type="radio" name="q2" value="c"> A queue that batches prediction requests</label>
+      <label><input type="radio" name="q2" value="d"> The web IDE where you write notebooks</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. You bring the code (script or container) and point at S3 data; SageMaker manages the instance lifecycle around the job and you pay only for the time it runs. Managed Spot makes that cheaper still.','Not quite. Training jobs are ephemeral managed compute — provisioned for the job, torn down after, model artifact left in S3. The IDE is Studio; the request queue is asynchronous inference.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. A fraud-scoring endpoint gets bursty traffic &mdash; heavy at market open, near-silent overnight. Which inference option fits best?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> A real-time endpoint on a large fixed instance count</label>
+      <label><input type="radio" name="q3" value="b"> Serverless inference (or real-time with aggressive autoscaling), so you are not paying for idle instances overnight</label>
+      <label><input type="radio" name="q3" value="c"> Batch transform every 5 minutes</label>
+      <label><input type="radio" name="q3" value="d"> Asynchronous inference</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. Bursty, uneven traffic is the serverless-inference sweet spot: it scales to zero between spikes so you pay per request. Real-time with autoscaling that scales in also works; a fixed large instance count pays for the peak all night.','Not quite. Batch transform is for scoring whole datasets offline, and async is for large payloads / long inferences. For spiky synchronous traffic you want serverless inference or real-time with scale-in autoscaling.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Why run Clarify on a model that helps decide loan approvals?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> It speeds up training</label>
+      <label><input type="radio" name="q4" value="b"> It detects bias across protected classes and produces feature-attribution reports that support ECOA / Reg B adverse-action reasons</label>
+      <label><input type="radio" name="q4" value="c"> It compresses the model for cheaper hosting</label>
+      <label><input type="radio" name="q4" value="d"> It is required to deploy any SageMaker endpoint</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Clarify does pre- and post-training bias analysis and SHAP explainability. For credit decisioning that output is both a fair-lending control and the basis for the specific reasons an adverse-action notice must state.','Not quite. Clarify is about bias and explainability, not performance or packaging, and it is not a deployment prerequisite. Its value for a lending model is fair-lending evidence and adverse-action reason codes.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+
+  <div class="question" id="q5">
+    <p>5. What is the main ongoing cost risk with a SageMaker real-time endpoint?</p>
+    <div class="options">
+      <label><input type="radio" name="q5" value="a"> It bills per instance-hour whether or not it is receiving traffic</label>
+      <label><input type="radio" name="q5" value="b"> Each prediction costs the same as a full training run</label>
+      <label><input type="radio" name="q5" value="c"> Endpoints cannot be deleted once created</label>
+      <label><input type="radio" name="q5" value="d"> You are charged per token like Bedrock</label>
+    </div>
+    <button class="check-btn" onclick="check('q5','a','Correct. A real-time endpoint charges for every hour its instances exist, busy or idle. An idle GPU endpoint is a silent monthly bill — hence serverless inference, scale-in autoscaling, and an alarm on invocations-per-instance.','Not quite. The trap is simply that a real-time endpoint is always-on billing: instance-hours accrue even with zero traffic. That is exactly why serverless inference and autoscaling exist.')">Check</button>
+    <div class="feedback" id="q5-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  SageMaker AI is the managed ML platform &mdash; Azure ML's counterpart: you bring a script or container, it runs the training and hosting infrastructure. Use it over Bedrock when you need a custom or classical model (fraud, credit, churn), a specific open-weight LLM, or fine-tuning and isolation Bedrock can't provide. The loop is <code>fit</code> &rarr; register &rarr; <code>deploy</code> &rarr; monitor; JumpStart makes hosting or fine-tuning an open LLM a two-liner. Watch the cost model &mdash; real-time endpoints bill 24/7, so reach for serverless inference, autoscaling, and Managed Spot. In finance: Model Registry approvals and Model Cards, Clarify for fair-lending and adverse-action, VPC-only isolation, and Model Monitor drift alarms.
+</div>
+
+<div class="lesson-nav">
+  <a href="0014-bedrock-genai.html">&larr; L14: Amazon Bedrock</a> &middot;
+  <a href="0015-agentcore-rag-multiagent.html">&larr; L15: AgentCore, RAG &amp; Multi-Agent</a> &middot;
+  <a href="0016-lambda-bedrock-agent-tools.html">&larr; L16: Agent Tools</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: SageMaker Pipelines end to end &middot; HyperPod for large-scale fine-tuning &middot; a SageMaker endpoint as an AgentCore Gateway tool &middot; SageMaker Unified Studio for the data + AI workflow<br><br>
+  <strong>Primary sources to read:</strong>
+  <a href="https://aws.amazon.com/sagemaker/ai/" target="_blank">Amazon SageMaker AI</a> &middot;
+  <a href="https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html" target="_blank">SageMaker AI Developer Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://aws.amazon.com/sagemaker/ai/" target="_blank">Amazon SageMaker AI &mdash; AWS</a> &middot;
+  <a href="https://aws.amazon.com/sagemaker/faqs/" target="_blank">Amazon SageMaker FAQs &mdash; AWS</a> &middot;
+  <a href="https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html" target="_blank">SageMaker AI Developer Guide</a> &middot;
+  <a href="https://aws.amazon.com/about-aws/whats-new/2025/07/amazon-sagemaker-hyperpod-accelerates-model-deployment" target="_blank">SageMaker HyperPod open-weights deployment (2025)</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

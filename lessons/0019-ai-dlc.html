@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 19 — AWS AI-DLC: The AI-Driven Development Lifecycle</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --light: #f5f4f0;
+    --border: #ddd;
+    --accent: #c0392b;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --green: #27ae60;
+    --purple: #7d3c98;
+    --aidlc: #5b3fb0;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.aidlc   { background: #f2eefb; border: 1px solid #cabbf0; border-left: 4px solid var(--aidlc); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aidlc); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aidlc); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .yes   { color: var(--green); font-weight: bold; }
+  .no    { color: var(--accent); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .phase { border: 1px solid var(--border); border-left: 4px solid var(--aidlc); border-radius: 4px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  .phase h3 { margin-top: 0; }
+  .phase .plabel { font-family: sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--aidlc); font-weight: bold; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 19 &middot; Methodology</div>
+  <h1>AWS AI-DLC: The AI-Driven Development Lifecycle</h1>
+  <div class="subtitle">A way of running software delivery where AI agents do the production work &mdash; requirements, code, tests, IaC &mdash; and humans spend their time deciding, validating, and owning the outcome.</div>
+</header>
+
+<p>Every lesson so far has been about <em>what</em> to build on AWS. This one is about <em>how a team works</em> when AI does most of the typing. <strong>AI-DLC</strong> (AI-Driven Development Life Cycle) is a methodology AWS published in 2025, along with an open reference implementation (<a href="https://github.com/awslabs/aidlc-workflows" target="_blank">awslabs/aidlc-workflows</a>) that runs inside coding agents like Claude Code, Kiro, Q Developer, and Cursor.</p>
+
+<div class="callout info">
+  <strong>Azure anchor &mdash; there isn't one, and that's the point</strong>
+  AI-DLC isn't an AWS service you provision; it's a <em>process</em>, and it's deliberately tool- and cloud-agnostic. The thing it replaces is <span class="azure">Scrum / SAFe</span> &mdash; sprints, story points, backlog grooming, solo authorship followed by async pull-request review. Those ceremonies were designed around the rate a human can read, write, and reason about code. AI-DLC's claim is that once an agent writes the first draft of everything, that rate is no longer the binding constraint, so the process should change shape.
+</div>
+
+<h2>What it is</h2>
+
+<p>The core thesis: <strong>Agile's bottleneck is human cognitive throughput.</strong> A team of seven can only elaborate, write, and review so much per sprint, so work queues up in a backlog that grows faster than it drains. AI-DLC restructures delivery around a different division of labour:</p>
+
+<ul>
+  <li><strong>AI agents</strong> generate the plans, user stories, code, tests (unit, integration, security), infrastructure-as-code, and documentation.</li>
+  <li><strong>Humans</strong> supply business intent, resolve ambiguity, make architectural and risk decisions, and validate output <em>continuously</em> &mdash; reviewing as the work is produced, not weeks later.</li>
+</ul>
+
+<p>AWS frames it as the middle path between two failures: fully autonomous AI development (too unreliable for regulated work) and AI-as-autocomplete (captures a fraction of the available leverage).</p>
+
+<h3>The vocabulary shift</h3>
+
+<table>
+  <thead><tr><th>Agile / Scrum</th><th>AI-DLC</th><th>Why it changes</th></tr></thead>
+  <tbody>
+    <tr><td>Sprint (2&ndash;4 weeks)</td><td><strong>Bolt</strong> (hours to days)</td><td>The elaborate&rarr;build&rarr;validate loop is now fast enough to close in a day.</td></tr>
+    <tr><td>Epic</td><td><strong>Unit of work</strong></td><td>Small, independently deployable batch sized for one bolt.</td></tr>
+    <tr><td>Solo authoring + async PR review</td><td><strong>Mob elaboration / mob construction</strong></td><td>The team works synchronously <em>with</em> the AI, validating drafts live instead of handing off.</td></tr>
+    <tr><td>Scrum team (~7 devs)</td><td><strong>AI Pod</strong> (2&ndash;3 devs)</td><td>Less authoring labour needed; small mob keeps decisions coherent. AWS cites one team going from 12 devs / 15 features per sprint to 3 devs / 35.</td></tr>
+    <tr><td>Definition of Done</td><td><strong>Steering files</strong> + tests</td><td>Standards are encoded as machine-readable rules the agent must satisfy and self-correct against.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout aidlc">
+  <strong>&ldquo;Bolt&rdquo; is the load-bearing idea</strong>
+  A bolt is one full pass of the lifecycle on one unit of work: intent in, validated increment out, hours later. You are not planning a two-week batch of work &mdash; you are running many tiny lifecycles, each with its own requirements, plan, code, tests, and human sign-off, each small enough to reason about and cheap to reverse.
+</div>
+
+<h2>The three phases</h2>
+
+<p>AI-DLC's conceptual model has three phases. (The <code>aidlc-workflows</code> reference implementation has since expanded to five &mdash; adding Initialization and Ideation &mdash; but the mental model below is the framework.)</p>
+
+<div class="phase">
+  <span class="plabel">Phase 1</span>
+  <h3>Inception &mdash; &ldquo;mob elaboration&rdquo;</h3>
+  <p>The team and the AI turn a business intent into a buildable plan. The agent drafts requirements and <strong>surfaces its assumptions as explicit questions</strong> (often multiple-choice, with an &ldquo;other&rdquo; escape); humans answer, the agent checks for contradictions, and the loop repeats until the spec is solid.</p>
+  <p><strong>Produces:</strong> a requirements document, user stories, a domain model, and a set of small units of work with an execution plan.</p>
+</div>
+
+<div class="phase">
+  <span class="plabel">Phase 2</span>
+  <h3>Construction &mdash; &ldquo;mob construction&rdquo;</h3>
+  <p>For each unit of work the agent produces a numbered, checkbox-tracked code-generation plan, gets it approved, then executes it step by step: functional design, code, tests (including security/pen tests), infrastructure-as-code, build and test instructions. Developers review <em>in flight</em> &mdash; validating each increment as it lands rather than writing then reviewing.</p>
+  <p><strong>Produces:</strong> well-tested increments, IaC, and continuously-updated documentation, every artifact traceable back to a user story.</p>
+</div>
+
+<div class="phase">
+  <span class="plabel">Phase 3</span>
+  <h3>Operation</h3>
+  <p>The generated IaC deploys through your CI/CD pipeline (<a href="0012-cicd.html">Lesson 12</a>). AI agents assist with incident root-cause analysis and monitoring. Production signals &mdash; incidents, metrics, user behaviour &mdash; feed back into the next Inception cycle.</p>
+  <p><strong>Produces:</strong> deployed software, operational feedback, and the inputs to the next bolt.</p>
+</div>
+
+<div class="flow">
+  <div class="ftitle">One bolt, end to end</div>
+  Business intent <span class="arrow">&rarr;</span> agent drafts requirements + asks clarifying questions <span class="arrow">&rarr;</span> <strong>human answers &amp; approves spec</strong> <span class="arrow">&rarr;</span> agent proposes execution plan <span class="arrow">&rarr;</span> <strong>human approves plan</strong> <span class="arrow">&rarr;</span> agent generates code + tests + IaC, self-correcting on test/steering-file failures <span class="arrow">&rarr;</span> <strong>human validates increment</strong> <span class="arrow">&rarr;</span> deploy via CI/CD <span class="arrow">&rarr;</span> operational feedback into next bolt
+</div>
+
+<h2>How to use it</h2>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Add the workflow rules to your repo.</strong> Clone <code>awslabs/aidlc-workflows</code> and copy its rules files into your project (e.g. <code>.amazonq/rules/</code> for Q Developer, or the equivalent for your agent). They load as steering rules the agent follows.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Start a bolt with an intent.</strong> In your coding agent: <code>/aidlc Build a statement-export API for the client portal</code> (or &ldquo;Using AI-DLC, let's build&hellip;&rdquo;). The workflow engine takes over and enters Inception.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Do the elaboration loop.</strong> The agent writes <code>requirement-verification-questions.md</code>. You answer inline, mark them answered, type &ldquo;Done&rdquo;. It reconciles contradictions and produces <code>requirements.md</code>.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Clear the approval gates.</strong> At each gate you pick: <em>approve &amp; continue</em>, <em>request changes</em>, or (for the spec) <em>add user stories</em>. Nothing proceeds without your explicit approval &mdash; requirements gate, plan gate, code gate, build/test gate.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Let construction run, reviewing as it goes.</strong> The agent works the checkbox plan, generating code and tests. You read each step as it completes, not at the end.</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><p><strong>Ship and feed back.</strong> Approve the build/test summary, deploy the IaC through CI/CD, and let operational signals seed the next bolt.</p></div></div>
+</div>
+
+<h3>What lands in your repo</h3>
+
+<table>
+  <thead><tr><th>Artifact</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>aidlc-docs/</code></td><td>All generated artifacts &mdash; requirements, execution plan, code-gen plans, design docs, build/test summaries.</td></tr>
+    <tr><td><code>aidlc-state.md</code></td><td>Progress tracker &mdash; which stage the bolt is in, which gates are cleared.</td></tr>
+    <tr><td><code>audit.md</code></td><td>Decision log &mdash; every question asked, answer given, and gate approval, timestamped.</td></tr>
+    <tr><td>Rules / steering files</td><td>Your standards as machine-readable constraints: security policy, architecture rules, approved-dependency list, regulatory guidance. The agent must satisfy these and self-corrects when it violates one.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout aidlc">
+  <strong>Adaptive rigor</strong>
+  The workflow sizes itself to the change. A one-line bug fix skips requirements analysis and planning; a new customer-facing feature runs the full Inception. You are not forced through ten stages for a typo &mdash; the engine proposes a streamlined path and you approve it.
+</div>
+
+<h2>AI-DLC in a financial-services context</h2>
+
+<div class="callout finance">
+  <strong>Steering files are where compliance lives</strong>
+  Encode the rules the code must never break: approved dependency allowlist, data-residency and encryption standards, architecture guardrails, and regulatory constraints (the AWS guidance explicitly names things like the EU AI Act and responsible-AI principles). The agent generates against them and self-corrects on violation &mdash; controls shift from &ldquo;caught in review&rdquo; to &ldquo;enforced during authoring.&rdquo;
+</div>
+
+<div class="callout finance">
+  <strong>End-to-end traceability from intent to production</strong>
+  Because every artifact is generated in-repo and linked &mdash; a failing test traces to a requirement traces to a user story traces to the original business intent, with <code>audit.md</code> recording each human decision &mdash; you get the paper trail an examiner asks for as a by-product, not a separate documentation effort.
+</div>
+
+<div class="callout finance">
+  <strong>Give risk and audit their own KPIs</strong>
+  AWS's guidance pairs velocity metrics with opposing assurance metrics &mdash; mean time to recovery, change-failure rate, percentage of failed deployments &mdash; so a faster pipeline stays measurable. Combine with <strong>risk-based change categorization</strong>: low-risk changes flow through with automated checks; high-risk changes require named human sign-off. Without that split, mandatory human approval on everything becomes the new bottleneck.
+</div>
+
+<h2>Pros and cons</h2>
+
+<table>
+  <thead><tr><th>Pros</th><th>Cons / risks</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="yes">Throughput</span> &mdash; delivery loop drops from weeks to hours; AWS and Amazon-internal case studies cite 5&ndash;10&times; feature output and dramatic team-size reductions.</td>
+      <td><span class="no">Amplifier, not a fix</span> &mdash; AWS is explicit: AI-DLC &ldquo;amplifies existing capabilities, it does not compensate for foundational gaps.&rdquo; Weak testing, slow CI/CD, or immature DevSecOps get amplified too.</td>
+    </tr>
+    <tr>
+      <td><span class="yes">Traceability</span> &mdash; intent&rarr;story&rarr;code&rarr;test links and a timestamped decision log come for free; strong fit for audit and regulatory review.</td>
+      <td><span class="no">CI/CD must keep up</span> &mdash; small reversible releases many times a day demand fast, trustworthy pipelines and evolved security tooling. Most orgs need infrastructure investment first.</td>
+    </tr>
+    <tr>
+      <td><span class="yes">Governance by construction</span> &mdash; standards encoded as steering files are enforced while code is written, not discovered in review.</td>
+      <td><span class="no">Synchronous and co-located</span> &mdash; mob elaboration assumes the team is available at the same time; hard for distributed teams and deep-focus cultures.</td>
+    </tr>
+    <tr>
+      <td><span class="yes">Smaller blast radius</span> &mdash; bolt-sized units are individually easy to reason about, test, and roll back.</td>
+      <td><span class="no">Review load shifts, not disappears</span> &mdash; humans now validate a high volume of AI output continuously. Reviewer fatigue and rubber-stamping are real failure modes; you lean on LLM reviewers plus humans.</td>
+    </tr>
+    <tr>
+      <td><span class="yes">Tool-agnostic</span> &mdash; the reference implementation runs across Claude Code, Kiro, Q Developer, Cursor, Copilot; not a lock-in.</td>
+      <td><span class="no">Young and moving</span> &mdash; published 2025, still evolving (3 phases &rarr; 5 in the reference impl). Limited independent long-run evidence; case studies are largely vendor-reported.</td>
+    </tr>
+    <tr>
+      <td><span class="yes">Keeps humans accountable</span> &mdash; approval gates and decision logging preserve a clear line of ownership.</td>
+      <td><span class="no">Org-chart disruption</span> &mdash; moving from 7-person Scrum teams to 2&ndash;3-person AI Pods is a real people change, not just a process tweak.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Adoption checklist</h2>
+<ul class="checklist">
+  <li>DevSecOps baseline in place first &mdash; automated tests, fast CI/CD, IaC, security scanning &mdash; before adopting, not after</li>
+  <li>Standards written as machine-readable steering files (security, architecture, dependency allowlist, regulatory constraints)</li>
+  <li>Risk-based change categorization defined &mdash; which changes auto-flow, which need named sign-off</li>
+  <li>Velocity KPIs paired with assurance KPIs (MTTR, change-failure rate) visible to risk and audit</li>
+  <li>Start with one pod, one low-risk service; run real bolts before rolling wider</li>
+  <li><code>aidlc-docs/</code>, <code>aidlc-state.md</code>, and <code>audit.md</code> committed with the code, not kept out of version control</li>
+  <li>Reviewers trained for continuous in-flight validation; guard against rubber-stamping (LLM review + human review both wired in)</li>
+  <li>Approval gates never bypassed for speed &mdash; the gate is the control</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on AI-DLC.</p>
+
+  <div class="question" id="q1">
+    <p>1. What problem does AI-DLC claim traditional Agile has?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Sprints are too short to deliver meaningful features</label>
+      <label><input type="radio" name="q1" value="b"> Human cognitive throughput is the bottleneck, so work queues in an ever-growing backlog</label>
+      <label><input type="radio" name="q1" value="c"> It requires too much infrastructure automation</label>
+      <label><input type="radio" name="q1" value="d"> It doesn't produce enough documentation</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. AI-DLC starts from the premise that Agile ceremonies are sized to how fast humans can elaborate, write, and review — and once AI drafts everything, that ceases to be the binding constraint, so the process should change shape.','Not quite. The stated problem is that a fixed-size human team can only process so much per sprint, so backlogs grow faster than they drain — the bottleneck is human cognitive throughput, which AI-DLC reorganizes around.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. In AI-DLC, what is a &ldquo;bolt&rdquo;?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> A security scan run before every deployment</label>
+      <label><input type="radio" name="q2" value="b"> One full pass of the lifecycle on one small unit of work, completing in hours to days</label>
+      <label><input type="radio" name="q2" value="c"> A steering file that constrains the coding agent</label>
+      <label><input type="radio" name="q2" value="d"> The synchronous meeting where the team elaborates requirements</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. A bolt replaces the sprint: intent in, validated increment out, with its own requirements, plan, code, tests, and human sign-off — small enough to reason about and cheap to reverse.','Not quite. A bolt is the unit of iteration that replaces the sprint — a complete elaborate→build→validate→deploy cycle on one small unit of work, run in hours or days rather than weeks.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Where do coding standards and regulatory constraints live in an AI-DLC setup?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> In steering / rules files the agent must satisfy and self-corrects against</label>
+      <label><input type="radio" name="q3" value="b"> Only in the pull-request review checklist</label>
+      <label><input type="radio" name="q3" value="c"> In the model weights of the coding agent</label>
+      <label><input type="radio" name="q3" value="d"> In a separate compliance document maintained outside the repo</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','a','Correct. Standards become machine-readable steering files — security policy, architecture rules, approved-dependency lists, regulatory guidance — enforced while code is authored, with the agent self-correcting on violation.','Not quite. The whole point is to move governance from after-the-fact review into authoring: standards are encoded as steering files in the repo that the agent generates against and self-corrects when it breaks one.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. AWS says AI-DLC &ldquo;amplifies existing capabilities; it does not compensate for foundational gaps.&rdquo; What follows from that?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> You should adopt AI-DLC before investing in test automation and CI/CD</label>
+      <label><input type="radio" name="q4" value="b"> A team with weak testing or slow pipelines will have those weaknesses amplified, so fix the DevSecOps baseline first</label>
+      <label><input type="radio" name="q4" value="c"> AI-DLC only works for greenfield projects</label>
+      <label><input type="radio" name="q4" value="d"> Human approval gates can be removed once the team is experienced</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. If bolts produce validated increments many times a day, everything downstream — tests, CI/CD, security scanning — runs far more often. Existing weaknesses there get amplified, so the baseline has to be solid before you turn up the volume.','Not quite. Amplification cuts both ways: faster authoring means more frequent tests, builds, and deploys, so a shaky DevSecOps baseline becomes a bigger problem, not a smaller one. Fix that first.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  AI-DLC is a delivery methodology, not an AWS service: AI agents produce requirements, code, tests, and IaC; humans supply intent, clear approval gates, and own the result. Sprints become <strong>bolts</strong> (hours&ndash;days), epics become <strong>units of work</strong>, solo authoring becomes <strong>mob elaboration/construction</strong>, and Scrum teams shrink to 2&ndash;3-person <strong>AI Pods</strong>. Three phases &mdash; Inception, Construction, Operation &mdash; loop continuously. You run it by adding the <code>aidlc-workflows</code> rules to your repo and driving bolts from your coding agent. For finance, its strengths are governance-by-steering-file and intent-to-code traceability; its risks are that it amplifies a weak DevSecOps baseline, demands fast CI/CD and synchronous teams, and is still young.
+</div>
+
+<div class="lesson-nav">
+  <a href="0016-lambda-bedrock-agent-tools.html">&larr; L16: Bedrock Agent Tools</a> &middot;
+  <a href="0012-cicd.html">&larr; L12: CI/CD</a> &middot;
+  <a href="0009-terraform.html">&larr; L9: Terraform</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: running a first bolt on a throwaway service &middot; writing steering files for your standards &middot; the <code>aidlc-workflows</code> 5-phase reference implementation &middot; Kiro's spec-driven mode as a lighter-weight alternative<br><br>
+  <strong>Primary sources to read:</strong>
+  <a href="https://aws.amazon.com/blogs/industries/ai-driven-development-lifecycle-for-financial-services/" target="_blank">AI-Driven Development Lifecycle for Financial Services (AWS)</a> &middot;
+  <a href="https://github.com/awslabs/aidlc-workflows" target="_blank">awslabs/aidlc-workflows</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://aws.amazon.com/blogs/industries/ai-driven-development-lifecycle-for-financial-services/" target="_blank">AI-Driven Development Lifecycle for Financial Services &mdash; AWS for Industries</a> &middot;
+  <a href="https://aws.amazon.com/blogs/devops/building-with-ai-dlc-using-amazon-q-developer/" target="_blank">Building with AI-DLC using Amazon Q Developer &mdash; AWS DevOps Blog</a> &middot;
+  <a href="https://github.com/awslabs/aidlc-workflows" target="_blank">awslabs/aidlc-workflows (GitHub)</a> &middot;
+  <a href="https://awslabs.github.io/aidlc-workflows/guide/00-introduction/" target="_blank">AI-DLC Workflows &mdash; Introduction</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>

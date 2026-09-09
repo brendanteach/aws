@@ -304,10 +304,96 @@ history = sessions.<span class="fn">query</span>(
 
 <p>DynamoDB shows up at <strong>step 5 (give it memory)</strong> &mdash; as the store behind session/checkpoint state &mdash; and at <strong>step 6 (give it tools)</strong> &mdash; as the database a Gateway target Lambda reads and writes. It is not the reasoning engine and not the vector store (that is OpenSearch / Aurora pgvector for RAG); it is the fast operational store for everything the agent needs to remember or look up by key.</p>
 
+<h2>Configuring a table</h2>
+
+<p>There are no instances, nodes, or clusters to place &mdash; nothing here is about hardware. The settings that matter:</p>
+
+<table>
+  <thead><tr><th>Setting</th><th>Options</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>Primary key</td><td>partition key, or partition + sort key</td><td><strong>Immutable.</strong> The one decision you cannot change later.</td></tr>
+    <tr><td>Capacity mode</td><td>on-demand / provisioned (+ auto-scaling)</td><td>Switchable, once per 24h.</td></tr>
+    <tr><td>Secondary indexes</td><td>GSI (any keys, add anytime) / LSI (same PK, create-time only)</td><td>Each GSI is a full copy &mdash; extra storage and write cost.</td></tr>
+    <tr><td>Encryption</td><td>AWS-owned / AWS-managed KMS / customer-managed KMS</td><td>Always on. CMK when compliance needs key control and rotation.</td></tr>
+    <tr><td>Point-in-time recovery</td><td>on / off</td><td>On for any customer or audit data &mdash; 35-day continuous restore.</td></tr>
+    <tr><td>TTL</td><td>one numeric epoch attribute</td><td>Free auto-delete. Sessions, idempotency keys, caches.</td></tr>
+    <tr><td>Streams</td><td>keys-only / new / old / both images</td><td>Change feed to Lambda. On for audit and projection tables.</td></tr>
+    <tr><td>Deletion protection</td><td>on / off</td><td>On for every prod stateful table.</td></tr>
+    <tr><td>Table class</td><td>Standard / Standard-IA</td><td>IA = cheaper storage, pricier throughput. For large, rarely-read tables (audit archives).</td></tr>
+    <tr><td>Global tables</td><td>multi-region replicas</td><td>Only if you genuinely need multi-region active-active.</td></tr>
+  </tbody>
+</table>
+
+<p>In CDK (Lesson 18) that is the <code>dynamodb.Table</code> construct: <code>partition_key</code>, <code>billing_mode</code>, <code>point_in_time_recovery</code>, <code>time_to_live_attribute</code>, <code>stream</code>, <code>removal_policy=RETAIN</code>.</p>
+
+<h2>Split or consolidate? Table design</h2>
+
+<p>DynamoDB has no instances, so &ldquo;split vs. consolidate&rdquo; means <strong>one multi-purpose table or several single-purpose tables</strong>. The classic expert advice is <strong>single-table design</strong> &mdash; every entity type in one table with generic <code>pk</code>/<code>sk</code>, overloaded keys, and GSIs. The advice has since softened to &ldquo;it depends,&rdquo; and one question decides it:</p>
+
+<div class="callout warn">
+  <strong>Do you need to fetch multiple entity types together in one request?</strong>
+  If yes &mdash; &ldquo;this customer <em>plus</em> their last 20 orders <em>plus</em> their open tickets&rdquo; &mdash; a single table lets one <code>Query</code> on a shared partition key return them pre-joined, with no extra round trips. If your reads are all single-entity lookups by key, a single table buys you nothing and costs you clarity.
+</div>
+
+<h3>When to consolidate (single table)</h3>
+<ul>
+  <li>Queries routinely need related items of different types together.</li>
+  <li>Access patterns are well understood and stable.</li>
+  <li>You are optimising a hot path where round-trip count is the cost.</li>
+</ul>
+
+<h3>When to split (multiple tables) &mdash; often the agent case</h3>
+<p>The four stores from the section above have genuinely different profiles:</p>
+
+<table>
+  <thead><tr><th>Data</th><th>Traffic shape</th><th>TTL</th><th>Size</th><th>Natural table</th></tr></thead>
+  <tbody>
+    <tr><td>Customer profiles</td><td>read-heavy, tiny items</td><td>none</td><td>small</td><td><code>customers</code></td></tr>
+    <tr><td>Session / chat history</td><td>per-session <code>Query</code>, balanced R/W</td><td>~30 days</td><td>grows</td><td><code>sessions</code></td></tr>
+    <tr><td>Tool-call audit log</td><td>write-heavy append, never updated</td><td>none / years</td><td>huge</td><td><code>audit</code> (Standard-IA, Streams on)</td></tr>
+    <tr><td>Idempotency keys</td><td>write-once, checked once</td><td>minutes&ndash;hours</td><td>small</td><td><code>idempotency</code></td></tr>
+  </tbody>
+</table>
+
+<p>Each wants a different capacity mode, TTL, table class, PITR setting, and set of alarms. One table cannot express that cleanly. Split also gives you simpler code, per-table cost attribution, isolated GSI blast radius, and easy exports. And you lose nothing on atomicity: <code>TransactWriteItems</code> and <code>BatchGetItem</code> both work <em>across</em> tables (up to 100 items / 4&nbsp;MB).</p>
+
+<div class="callout info">
+  <strong>Rule of thumb</strong>
+  Consolidate for tightly-coupled, well-known access patterns on a hot path. Split when entities have different lifecycles, when patterns are still evolving, or when each service / agent tool owns its own data &mdash; which is most of the time.
+</div>
+
+<h2>Capacity mode &amp; the metrics that decide</h2>
+
+<h3>On-demand vs. provisioned</h3>
+<p>Start <strong>on-demand</strong> &mdash; no planning, pay per request, absorbs spikes instantly. Move a table to <strong>provisioned + auto-scaling</strong> only once its traffic is steady and measured; the rough crossover is <strong>sustained utilisation above ~15&ndash;20%</strong> of a sensible provisioned level. Spiky or low-volume tables stay on-demand.</p>
+
+<h3>Signals to watch (CloudWatch)</h3>
+<table>
+  <thead><tr><th>Metric</th><th>What it tells you</th></tr></thead>
+  <tbody>
+    <tr><td><code>ReadThrottleEvents</code> / <code>WriteThrottleEvents</code>, <code>ThrottledRequests</code></td><td>Under-provisioned, or a <strong>hot partition</strong> &mdash; fix with better key distribution (write-sharding), <em>not</em> more tables.</td></tr>
+    <tr><td><strong>Contributor Insights</strong> (most-accessed keys)</td><td>Which partition keys are hot; whether one tenant or entity dominates traffic.</td></tr>
+    <tr><td><code>SuccessfulRequestLatency</code> p99 by operation</td><td>Rising p99 at flat traffic &rarr; hot keys or oversized item collections.</td></tr>
+    <tr><td>Consumed vs. provisioned capacity (utilisation %)</td><td>Drives the on-demand &harr; provisioned decision.</td></tr>
+    <tr><td>Peak : average traffic ratio</td><td>High variance &rarr; on-demand; predictable &rarr; provisioned.</td></tr>
+    <tr><td>Per-GSI consumed capacity, <code>OnlineIndexConsumedWriteCapacity</code></td><td>Write amplification from too many GSIs &mdash; a reason to split a table.</td></tr>
+    <tr><td><code>TableSizeBytes</code>, <code>ItemCount</code></td><td>Watch item collections approaching the <strong>10&nbsp;GB per partition-key</strong> hard limit.</td></tr>
+    <tr><td>Cost Explorer per table (tag every table)</td><td>Which table or GSI actually costs money &mdash; invisible if everything is one table.</td></tr>
+    <tr><td><code>ScannedCount</code> vs <code>ReturnedItemCount</code> (your app)</td><td>Filter waste &mdash; a missing GSI or wrong key design.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>The partition ceiling</strong>
+  One physical partition tops out near <strong>3,000 RCU / 1,000 WCU / 10&nbsp;GB</strong>. Hot-partition throttling is always solved by key design &mdash; adding a shard suffix, choosing a higher-cardinality partition key &mdash; never by adding tables or raising table-level capacity.
+</div>
+
 <h2>Production checklist</h2>
 <ul class="checklist">
   <li>Access patterns written down first; keys and GSIs designed to make each one a <code>GetItem</code> or <code>Query</code></li>
-  <li>On-demand billing to start; revisit provisioned + autoscaling only once load is steady and measured</li>
+  <li>Table boundary chosen deliberately: consolidate only where reads need multiple entity types together, otherwise one table per entity/lifecycle</li>
+  <li>On-demand billing to start; move a table to provisioned + autoscaling only once utilisation is steady above ~15&ndash;20%</li>
+  <li>Every table tagged for per-table cost attribution; Contributor Insights on for hot-key detection</li>
   <li>No <code>Scan</code> in request paths &mdash; add a GSI instead</li>
   <li>Conditional writes for every create-once / idempotent operation (agent actions, trades, signups)</li>
   <li>TTL attribute on all ephemeral data (sessions, caches, locks)</li>
@@ -320,7 +406,7 @@ history = sessions.<span class="fn">query</span>(
 <!-- QUIZ -->
 <div class="quiz">
   <h2>Knowledge Check</h2>
-  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on DynamoDB and its role in an agentic system.</p>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Five questions on DynamoDB and its role in an agentic system.</p>
 
   <div class="question" id="q1">
     <p>1. Your app needs "get the 20 most recent transactions for customer 883". What DynamoDB operation should back this?</p>
@@ -369,11 +455,23 @@ history = sessions.<span class="fn">query</span>(
     <button class="check-btn" onclick="check('q4','c','Correct. DynamoDB is the fast operational key-value store for everything the agent looks up or remembers by key — session state, checkpoints, audit events, idempotency records.','Not quite. Reasoning is the model; semantic retrieval needs a vector store (OpenSearch / Aurora pgvector); ad-hoc relational reporting is RDS. DynamoDB is the key-access store for agent memory, audit, and idempotency.')">Check</button>
     <div class="feedback" id="q4-feedback"></div>
   </div>
+
+  <div class="question" id="q5">
+    <p>5. Your agent's audit log is write-heavy and never read in the hot path; customer profiles are tiny and read-constantly. What's the right table design?</p>
+    <div class="options">
+      <label><input type="radio" name="q5" value="a"> One table for both, using overloaded keys — always prefer single-table design</label>
+      <label><input type="radio" name="q5" value="b"> Separate tables — the two have different traffic shapes, TTL, table class, and alarm needs, and nothing reads them together</label>
+      <label><input type="radio" name="q5" value="c"> One table, but put the audit log in a GSI</label>
+      <label><input type="radio" name="q5" value="d"> Keep profiles in DynamoDB and move the audit log to RDS</label>
+    </div>
+    <button class="check-btn" onclick="check('q5','b','Correct. Consolidate only when reads need multiple entity types together. Here they never do, and the two have opposite profiles — so separate tables give you independent capacity mode, table class (Standard-IA for audit), TTL, PITR, and alarms, with simpler code and per-table cost visibility.','Not quite. Single-table design pays off only when one Query must return related items of different types. These are never read together and have opposite traffic and lifecycle profiles — separate tables is the cleaner choice, and transactions still work across them.')">Check</button>
+    <div class="feedback" id="q5-feedback"></div>
+  </div>
 </div>
 
 <div class="callout finance">
   <strong>Lesson takeaway</strong>
-  DynamoDB is AWS's serverless NoSQL database &mdash; Cosmos DB's counterpart. You design keys around known access patterns, then CRUD is <code>put_item</code> / <code>get_item</code> / <code>query</code> / <code>update_item</code> / <code>delete_item</code>, with conditional writes for idempotency and <code>Query</code> (never <code>Scan</code>) for ranges. In an AgentCore system it plays two parts: the database a Gateway tool Lambda reads on the agent's behalf (with entitlement checks in the Lambda), and the store behind the agent's own session memory, checkpoints, and audit trail &mdash; hardened with TTL, PITR, and Streams.
+  DynamoDB is AWS's serverless NoSQL database &mdash; Cosmos DB's counterpart. You design keys around known access patterns, then CRUD is <code>put_item</code> / <code>get_item</code> / <code>query</code> / <code>update_item</code> / <code>delete_item</code>, with conditional writes for idempotency and <code>Query</code> (never <code>Scan</code>) for ranges. In an AgentCore system it plays two parts: the database a Gateway tool Lambda reads on the agent's behalf (with entitlement checks in the Lambda), and the store behind the agent's own session memory, checkpoints, and audit trail &mdash; hardened with TTL, PITR, and Streams. Split into separate tables per entity/lifecycle unless reads genuinely need several entity types together; start on-demand and let CloudWatch throttle, latency, and utilisation metrics tell you when to change capacity mode or fix a hot key.
 </div>
 
 <div class="lesson-nav">
