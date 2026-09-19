@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 23 — AWS Resilience Hub</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --purple: #7d3c98; --rh-blue: #232f3e; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; } .dim { color: #888; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.rh      { background: #eaedf2; border: 1px solid #b7c0cf; border-left: 4px solid var(--rh-blue); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .rh    { color: var(--rh-blue); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.7rem; margin: 1rem 0 1.5rem; }
+  .score-box { border: 1px solid var(--border); border-radius: 5px; padding: 0.8rem 0.7rem; background: white; text-align: center; }
+  .score-pct { font-family: sans-serif; font-size: 1.4rem; font-weight: bold; color: var(--rh-blue); }
+  .score-label { font-family: sans-serif; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-top: 0.2rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 23 &middot; Resilience &amp; Performance</div>
+  <h1>AWS Resilience Hub</h1>
+  <div class="subtitle">Turn &ldquo;we think we could survive an AZ outage&rdquo; into a measured score, a gap list, and the FIS experiments that prove it &mdash; before an incident does.</div>
+</header>
+
+<p><a href="0022-fis-jmeter-resilience-load-testing.html">Lesson 22</a> covered <em>proving</em> resilience by deliberately injecting failure with FIS. This lesson covers the step before that: <strong>Resilience Hub</strong> assesses your architecture against a target recovery objective, tells you exactly which resources fall short, and can generate the FIS experiments and CloudWatch alarms to close the gap and then verify it.</p>
+
+<h2>What Resilience Hub actually does</h2>
+
+<p>You point it at an application (a CloudFormation stack, Terraform state, an EKS/App Runner resource, or a plain resource group), set a target for how fast and how completely it must recover from different kinds of disruption, and it runs a static assessment of the architecture &mdash; Multi-AZ or not, backups configured or not, auto-scaling present or not &mdash; and produces a <strong>resiliency score</strong> plus specific, actionable recommendations.</p>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  There is no exact one-to-one Azure service. The closest partial matches are the <span class="azure">Azure Well-Architected Framework Review</span> (a scored assessment, but manual/consultative rather than continuously computed from live resource config) and <span class="azure">Azure Business Continuity Center</span> for tracking DR/backup posture. Resilience Hub is closer to a hybrid of both, automated: it reads your actual deployed resource graph and computes the score itself.
+</div>
+
+<h3>Core concepts</h3>
+
+<table>
+  <thead><tr><th>Concept</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Application</strong></td><td>The set of resources Resilience Hub assesses together &mdash; imported from a CloudFormation stack, Terraform state file, an App Runner/EKS resource, or resource-group tags.</td></tr>
+    <tr><td><strong>Resiliency Policy</strong></td><td>Your target <strong>RTO</strong> (Recovery Time Objective &mdash; how long you can be down) and <strong>RPO</strong> (Recovery Point Objective &mdash; how much data you can afford to lose), set <em>per disruption type</em>: Software, Hardware, Availability Zone, and Region.</td></tr>
+    <tr><td><strong>Assessment</strong></td><td>A run that compares the application's actual configuration against the policy and produces a score, per-resource findings, and recommendations.</td></tr>
+    <tr><td><strong>Resiliency Score</strong></td><td>A 0&ndash;100% score, broken down per disruption type, showing how close the architecture is to meeting the policy.</td></tr>
+    <tr><td><strong>Recommendations</strong></td><td>Concrete fixes &mdash; "enable Multi-AZ on this RDS instance," "add a DLQ to this queue" &mdash; each with an estimated score improvement, plus ready-to-run <strong>alarm</strong> (CloudWatch) and <strong>test</strong> (FIS experiment template) recommendations.</td></tr>
+    <tr><td><strong>Drift detection</strong></td><td>Re-checks the deployed application against the last assessed version and flags when infrastructure has changed in a way that could have silently lowered the score.</td></tr>
+  </tbody>
+</table>
+
+<h2>RTO and RPO, concretely</h2>
+
+<div class="score-grid">
+  <div class="score-box"><div class="score-pct">RTO</div><div class="score-label">Recovery Time Objective</div></div>
+  <div class="score-box"><div class="score-pct">RPO</div><div class="score-label">Recovery Point Objective</div></div>
+</div>
+
+<p><strong>RTO</strong> answers "how long can the trading API be down before it's unacceptable?" <strong>RPO</strong> answers "how much data can we lose &mdash; the last 5 minutes of trades, or none?" These aren't abstract SRE jargon in a financial app: they are usually already written down somewhere as a compliance or business-continuity requirement. Resilience Hub's whole job is turning that written-down number into a measured, continuously re-checked score against real infrastructure.</p>
+
+<pre><span class="file-label">resiliency-policy.json</span>
+{
+  <span class="key">"policyName"</span>: <span class="str">"finapp-trading-api-tier1"</span>,
+  <span class="key">"tier"</span>: <span class="str">"MissionCritical"</span>,
+  <span class="key">"policy"</span>: {
+    <span class="key">"Software"</span>:          { <span class="key">"rtoInSecs"</span>: <span class="num">300</span>,   <span class="key">"rpoInSecs"</span>: <span class="num">0</span> },
+    <span class="key">"Hardware"</span>:          { <span class="key">"rtoInSecs"</span>: <span class="num">300</span>,   <span class="key">"rpoInSecs"</span>: <span class="num">0</span> },
+    <span class="key">"AZ"</span>:                { <span class="key">"rtoInSecs"</span>: <span class="num">600</span>,   <span class="key">"rpoInSecs"</span>: <span class="num">60</span> },
+    <span class="key">"Region"</span>:            { <span class="key">"rtoInSecs"</span>: <span class="num">14400</span>, <span class="key">"rpoInSecs"</span>: <span class="num">900</span> }
+  }
+}</pre>
+
+<div class="callout finance">
+  <strong>The policy is your DR tier, written as numbers</strong>
+  Zero RPO for a Software/Hardware disruption means "we cannot lose a single confirmed trade to a process crash" &mdash; which pushes you toward synchronous replication and idempotent retries, not just backups. A non-zero AZ RPO of 60 seconds means "async replication lag up to a minute is acceptable" during an AZ failure. Write the policy to match what your compliance/business-continuity plan already promises, not what's convenient to hit &mdash; a policy your infrastructure passes but that's looser than the real requirement is a false sense of safety.
+</div>
+
+<h2>Running an assessment end to end</h2>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Define the application</strong> &mdash; import resources from your existing CloudFormation stack or Terraform state. No re-modeling: Resilience Hub reads what's already deployed.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Attach (or create) a resiliency policy</strong> with your RTO/RPO targets per disruption type.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Publish the app version and run an assessment.</strong> Resilience Hub statically analyzes the resource graph: is RDS Multi-AZ? Does the SQS queue have a DLQ? Is the ASG spread across AZs? Is there a backup plan?</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Read the score and recommendations</strong>, ranked by impact. Each recommendation names the exact resource and the exact config change.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Implement the top recommendations</strong> in your CDK/Terraform code (Lessons 9 &amp; 18), redeploy, and re-run the assessment to confirm the score moved.</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><p><strong>Generate and run the recommended FIS experiments</strong> (Lesson 22) to <em>prove</em> the fix actually works under real failure, not just on paper.</p></div></div>
+</div>
+
+<pre><span class="file-label">terminal — CLI walkthrough</span>
+aws resiliencehub create-app \
+  --name finapp-trading-api \
+  --description <span class="str">"Trading API and its dependencies"</span>
+
+aws resiliencehub import-resources-to-draft-app-version \
+  --app-arn arn:aws:resiliencehub:us-east-1:111111111111:app/finapp-trading-api \
+  --source-arns arn:aws:cloudformation:us-east-1:111111111111:stack/finapp-api/abc123
+
+aws resiliencehub create-resiliency-policy --cli-input-json file://resiliency-policy.json
+
+aws resiliencehub publish-app-version --app-arn arn:aws:resiliencehub:us-east-1:111111111111:app/finapp-trading-api
+
+aws resiliencehub create-app-assessment \
+  --app-arn arn:aws:resiliencehub:us-east-1:111111111111:app/finapp-trading-api \
+  --app-version release-2 \
+  --assessment-name q3-assessment
+
+aws resiliencehub list-app-assessment-resource-drifts --app-arn ... --assessment-arn ...</pre>
+
+<h3>What a recommendation looks like</h3>
+
+<table>
+  <thead><tr><th>Resource</th><th>Finding</th><th>Recommendation</th></tr></thead>
+  <tbody>
+    <tr><td>RDS PostgreSQL instance</td><td>Single-AZ &mdash; an AZ failure exceeds the RTO/RPO in the policy</td><td>Enable Multi-AZ; estimated score impact: +12%</td></tr>
+    <tr><td>Trade-events SQS queue</td><td>No DLQ configured</td><td>Add a dead-letter queue with <code>maxReceiveCount</code> &mdash; generates a ready-to-deploy CloudFormation snippet</td></tr>
+    <tr><td>ECS service</td><td>Tasks not spread across multiple AZs</td><td>Set subnet placement to span &ge;2 AZs; also generates a suggested FIS experiment to verify it</td></tr>
+    <tr><td>No CloudWatch alarm found</td><td>No alarm covers RDS failover events</td><td>Generates a CloudFormation template for the missing alarm, ready to add to your stack</td></tr>
+  </tbody>
+</table>
+
+<div class="callout rh">
+  <strong>Resilience Hub closes the loop with FIS and CloudWatch</strong>
+  This is the piece that ties directly to <a href="0022-fis-jmeter-resilience-load-testing.html">Lesson 22</a>: recommendations aren't just prose. Resilience Hub can generate a ready-to-import <strong>FIS experiment template</strong> for exactly the failure mode it flagged (e.g. "stop this RDS instance and confirm failover completes within RTO") and a <strong>CloudWatch alarm</strong> CloudFormation snippet for gaps in monitoring coverage. You implement the infra fix, then run the generated experiment to get evidence, not just a static score, that the fix works.
+</div>
+
+<h2>Drift detection</h2>
+
+<p>An assessment is a snapshot. Someone changes an Auto Scaling Group's subnets, a teammate removes a DLQ "temporarily" to debug something, or a Terraform apply reverts a Multi-AZ setting &mdash; and your actual resilience posture silently degrades below what was last measured. Resilience Hub's drift detection re-compares the live resource graph against the assessed version and flags exactly this, so a resilience regression shows up as an alert, not as a postmortem finding.</p>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>A resiliency policy exists per application tier, with RTO/RPO numbers taken from an actual documented DR/compliance requirement &mdash; not chosen to make the score look good</li>
+  <li>Applications imported from the same CloudFormation/Terraform source of truth already used to deploy them &mdash; never a manually re-modeled duplicate that drifts from reality</li>
+  <li>Assessments re-run after every significant infrastructure change, not just once at launch</li>
+  <li>Top recommendations tracked as backlog items with an owner, not left as a dashboard nobody revisits</li>
+  <li>Generated FIS experiment templates actually run (Lesson 22), in staging first, to convert "the score says this should work" into "we watched it work"</li>
+  <li>Drift detection alerts routed to the same on-call channel as CloudWatch alarms &mdash; a resilience regression is an operational issue, not a quarterly review item</li>
+  <li>Score and RTO/RPO compliance tracked over time (release over release), not treated as a one-time certification</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on AWS Resilience Hub.</p>
+
+  <div class="question" id="q1">
+    <p>1. In a Resilience Hub resiliency policy, what do RTO and RPO each represent?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> RTO is a cost budget; RPO is a performance budget</label>
+      <label><input type="radio" name="q1" value="b"> RTO is how long the application can be down before recovery; RPO is how much data (measured in time) you can afford to lose</label>
+      <label><input type="radio" name="q1" value="c"> RTO and RPO are two names for the same resiliency score, expressed as percent and seconds</label>
+      <label><input type="radio" name="q1" value="d"> RTO applies only to Region-level disruptions; RPO applies only to Software disruptions</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. RTO (Recovery Time Objective) is the acceptable downtime; RPO (Recovery Point Objective) is the acceptable data loss window, typically driven by replication lag. Both are set per disruption type (Software, Hardware, AZ, Region) in the policy because a Region-wide outage reasonably tolerates a longer RTO/RPO than a single process crash.','Not quite. RTO/RPO aren\'t cost or performance budgets and aren\'t the same measurement — RTO measures downtime, RPO measures data loss — and both are set independently across all four disruption types, not restricted to just one each.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Where does Resilience Hub get the application it assesses?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> You manually re-draw the architecture diagram inside Resilience Hub</label>
+      <label><input type="radio" name="q2" value="b"> It imports resources from an existing source of truth — a CloudFormation stack, Terraform state, or a tagged resource group — that's already deployed</label>
+      <label><input type="radio" name="q2" value="c"> It only works with resources deployed through the AWS Console, not IaC</label>
+      <label><input type="radio" name="q2" value="d"> It generates a brand-new application from a template you choose</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. Resilience Hub imports the actual deployed resource graph from your existing IaC source of truth (CloudFormation, Terraform state, EKS/App Runner resources, or tagged resource groups) — it assesses what\'s really running, not a manually re-modeled description of it.','Not quite. Resilience Hub deliberately avoids a manually re-drawn model — that would drift from reality. It imports resources from your existing deployed source of truth, which works for both IaC-managed and appropriately tagged resources.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Resilience Hub flags that your ECS service isn't spread across multiple AZs and generates a recommendation. What's the most complete way to close that finding?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Mark the recommendation as acknowledged and move on — the score will update automatically</label>
+      <label><input type="radio" name="q3" value="b"> Fix the subnet placement in your IaC, redeploy, re-run the assessment to confirm the score improved, and run the generated FIS experiment to verify it under real failure</label>
+      <label><input type="radio" name="q3" value="c"> Only run the FIS experiment — Resilience Hub can't be re-assessed after a fix</label>
+      <label><input type="radio" name="q3" value="d"> Raise the RTO in the policy until the finding disappears</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. A recommendation names a config fix — implement it in the same IaC that deploys the resource, re-run the assessment to confirm the score actually moved, and run the corresponding generated FIS experiment for real evidence, not just a static analysis result. Loosening the policy to make a finding disappear defeats the entire purpose.','Not quite. Acknowledging a finding doesn\'t change the underlying resource, re-assessment is exactly how you confirm a fix worked, and loosening the RTO to hide a real gap is the opposite of what the tool is for — it would pass a policy weaker than your actual requirement.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Why does drift detection matter even after an application scores well on its initial assessment?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Because AWS resiliency policies expire automatically every 90 days</label>
+      <label><input type="radio" name="q4" value="b"> Because a later infrastructure change (removing a DLQ, altering AZ placement) can silently lower real resilience below what was last measured, and drift detection flags exactly that gap between the assessed and live state</label>
+      <label><input type="radio" name="q4" value="c"> Because FIS experiments automatically undo any infrastructure changes made after an assessment</label>
+      <label><input type="radio" name="q4" value="d"> Drift detection only matters for Region-level disruptions, not AZ or Hardware</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. An assessment is a snapshot of a specific app version. Real infrastructure keeps changing after that — a well-meaning tweak can quietly undo a fix. Drift detection re-compares the live resource graph to what was last assessed, turning a silent resilience regression into a visible alert instead of a postmortem discovery.','Not quite. Policies don\'t auto-expire, FIS doesn\'t undo infrastructure changes, and drift detection applies across all disruption types, not just Region. The core purpose is catching resilience regressions that happen after the last assessment, before they cause an incident.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  Resilience Hub turns a written RTO/RPO requirement into a measured <strong>resiliency policy</strong> checked against your real, deployed resource graph (imported from CloudFormation/Terraform &mdash; never manually re-modeled). Publishing an app version and running an <strong>assessment</strong> produces a scored, per-resource list of gaps with concrete fixes, and can generate the exact <strong>FIS experiment templates</strong> (Lesson 22) and <strong>CloudWatch alarms</strong> (Lesson 11) needed to close and then prove each gap. <strong>Drift detection</strong> keeps that posture honest over time as infrastructure keeps changing after the last assessment. Together with FIS and JMeter, this is the "measure it, break it on purpose, prove it recovered" loop a financial app's DR story should run on &mdash; not a document reviewed once a year.
+</div>
+
+<div class="lesson-nav">
+  <a href="0022-fis-jmeter-resilience-load-testing.html">&larr; L22: AWS FIS &amp; JMeter</a> &middot;
+  <a href="0011-cloudwatch.html">&larr; L11: CloudWatch</a> &middot;
+  <a href="0005-rds.html">&larr; L5: RDS</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: AWS Backup for centralized, policy-driven backup across services &middot; multi-Region active/passive DR patterns &middot; the AWS Well-Architected Reliability pillar review &middot; Route 53 Application Recovery Controller for Region failover<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/resilience-hub/latest/userguide/introduction.html" target="_blank">AWS Resilience Hub User Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/resilience-hub/latest/userguide/introduction.html" target="_blank">AWS Resilience Hub User Guide</a> &middot;
+  <a href="https://aws.amazon.com/resilience-hub/" target="_blank">AWS Resilience Hub</a> &middot;
+  <a href="https://docs.aws.amazon.com/resilience-hub/latest/userguide/resiliency-policy.html" target="_blank">Resiliency policies &amp; RTO/RPO</a> &middot;
+  <a href="https://docs.aws.amazon.com/resilience-hub/latest/userguide/drift.html" target="_blank">Drift detection</a> &middot;
+  <a href="https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/welcome.html" target="_blank">Well-Architected Reliability Pillar</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
