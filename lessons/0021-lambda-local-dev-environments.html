@@ -312,6 +312,41 @@ app.<span class="fn">synth</span>();</pre>
   }
 }</pre>
 
+<p>The stack takes an environment name as a parameter, so the assertion test (same <code>aws-cdk-lib/assertions</code> pattern as <a href="0018-aws-cdk.html">Lesson 18</a>) can confirm each environment actually gets the memory/concurrency it's supposed to &mdash; not just that the stack synthesizes.</p>
+
+<pre><span class="file-label">test/lambda-group-stack.test.ts</span>
+<span class="kw">import</span> { App } <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> { Template } <span class="kw">from</span> <span class="str">'aws-cdk-lib/assertions'</span>;
+<span class="kw">import</span> { LambdaGroupStack } <span class="kw">from</span> <span class="str">'../lib/lambda-group-stack'</span>;
+
+test(<span class="str">'qa functions get qa-sized memory and concurrency'</span>, () => {
+  <span class="kw">const</span> template = Template.<span class="fn">fromStack</span>(<span class="kw">new</span> <span class="cls">LambdaGroupStack</span>(<span class="kw">new</span> App(), <span class="str">'t'</span>, <span class="str">'qa'</span>));
+
+  template.<span class="fn">hasResourceProperties</span>(<span class="str">'AWS::Lambda::Function'</span>, {
+    FunctionName: <span class="str">'GetCustomerProfile-qa'</span>,
+    MemorySize: <span class="num">256</span>,
+    ReservedConcurrentExecutions: <span class="num">5</span>,
+  });
+});
+
+test(<span class="str">'prod functions get prod-sized memory and concurrency'</span>, () => {
+  <span class="kw">const</span> template = Template.<span class="fn">fromStack</span>(<span class="kw">new</span> <span class="cls">LambdaGroupStack</span>(<span class="kw">new</span> App(), <span class="str">'t'</span>, <span class="str">'prod'</span>));
+
+  template.<span class="fn">hasResourceProperties</span>(<span class="str">'AWS::Lambda::Function'</span>, {
+    FunctionName: <span class="str">'GetCustomerProfile-prod'</span>,
+    MemorySize: <span class="num">1024</span>,
+    ReservedConcurrentExecutions: <span class="num">50</span>,
+  });
+
+  <span class="cmt">// three tool Lambdas defined — catches an accidental drop from the `functions` list</span>
+  template.<span class="fn">resourceCountIs</span>(<span class="str">'AWS::Lambda::Function'</span>, <span class="num">3</span>);
+});</pre>
+
+<div class="callout warn">
+  <strong>Same rule as Lesson 18: <code>cdk synth</code> doesn't run this either</strong>
+  This is an ordinary Jest suite (<code>npm test</code> / <code>npx jest</code>), separate from <code>cdk synth</code>. Each test instantiates the stack with a specific <code>envName</code> and synthesizes just that instance in-process via <code>Template.fromStack(...)</code> &mdash; useful here specifically because it lets you assert against qa/uat/prod configurations independently, without ever deploying any of them.
+</div>
+
 <div class="flow">
   <div class="ftitle">Promotion pipeline</div>
 git push to <code>main</code>
@@ -349,6 +384,7 @@ git push to <code>main</code>
   <li>Memory sized from CloudWatch metrics, not guessed; timeout set with margin, not equal to the slowest observed run</li>
   <li>Reserved concurrency set on anything that calls a rate-limited downstream (RDS, a third-party API) so a traffic spike can't exhaust connections</li>
   <li>Function/stack code parameterized by environment (account, memory, concurrency, log retention) &mdash; never branched with <code>if env == "prod"</code> string checks scattered through business logic</li>
+  <li>CDK assertion tests cover each environment's config independently (qa/uat/prod memory, concurrency), not just that the stack synthesizes at all</li>
   <li>QA and UAT in separate AWS accounts from prod, with SCPs preventing cross-account data access</li>
   <li>CI/CD promotes the same built artifact through QA &rarr; UAT &rarr; prod &mdash; never rebuilds per environment</li>
   <li>CloudWatch alarms on <code>Errors</code>, <code>Throttles</code>, and <code>Duration</code> p99 per function, per environment</li>
