@@ -104,6 +104,11 @@
 <p>This lesson shows you how to use it end to end: the mental model, the project layout, the six commands you'll actually run, and a real stack that provisions the DynamoDB + Lambda tool from Lesson 17.</p>
 
 <div class="callout info">
+  <strong>Language support</strong>
+  Every example here is Python, matching this repo's stack, but CDK is originally and primarily a <strong>TypeScript</strong> tool &mdash; the CLI itself runs on Node.js regardless of which language your stack is written in. <code>cdk init app --language typescript</code> gives you the identical App/Stack/Construct model and the same <code>synth</code>/<code>diff</code>/<code>deploy</code>/<code>destroy</code> commands; only the syntax and package manager (<code>npm</code> vs. <code>pip</code>) differ. Java, C#, and Go are supported too.
+</div>
+
+<div class="callout info">
   <strong>Azure anchor</strong>
   CloudFormation is Azure's <span class="azure">ARM / Bicep</span> &mdash; a declarative template the platform reconciles. The CDK is the layer above it, like using <span class="azure">Azure Bicep modules</span> plus the imperative power of <span class="azure">Pulumi</span> or the <span class="azure">Azure SDK</span>: you write code, it emits the template. If you've written Bicep modules with parameters and loops, CDK constructs will feel familiar &mdash; just in Python instead of a DSL.
 </div>
@@ -245,6 +250,11 @@ app.<span class="fn">synth</span>()</pre>
 <h2>Testing infrastructure</h2>
 
 <p>Because it's code, you can unit-test the synthesized template with assertions &mdash; catch a missing encryption flag or an over-broad policy before it ships.</p>
+
+<div class="callout warn">
+  <strong><code>cdk synth</code> does not run your tests</strong>
+  They're two separate steps. <code>cdk synth</code> just renders your <code>app.py</code> to CloudFormation &mdash; it happens to run your Python, so it'll surface an import error or a bad construct property, but it never discovers or executes <code>tests/unit/test_*.py</code>. The assertion tests below are run separately with <code>pytest</code>; each one calls <code>Template.from_stack(...)</code> itself, which does its own in-process synth of that one stack. Wire both into CI as independent commands &mdash; <code>cdk synth</code> catches code errors, <code>pytest tests/</code> catches the specific invariants (encryption, PITR, IAM) you assert on.
+</div>
 
 <pre><span class="file-label">tests/unit/test_agent_tools_stack.py</span>
 <span class="kw">from</span> aws_cdk <span class="kw">import</span> App
