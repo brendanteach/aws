@@ -118,7 +118,7 @@
     <tr><td><strong>App</strong></td><td>The root of your CDK program. Contains one or more stacks. This is the <code>app.py</code> entry point.</td></tr>
     <tr><td><strong>Stack</strong></td><td>A unit of deployment = one CloudFormation stack. Maps to one account + region. You deploy, update, and delete a stack as a whole.</td></tr>
     <tr><td><strong>Construct</strong></td><td>A reusable building block representing one or more AWS resources. Constructs nest inside stacks and inside each other.</td></tr>
-    <tr><td><strong>synth</strong></td><td>The compile step: <code>cdk synth</code> runs your code and writes CloudFormation JSON/YAML to <code>cdk.out/</code>.</td></tr>
+    <tr><td><strong>synth</strong></td><td>The compile step: <code>cdk synth</code> runs your code and writes CloudFormation JSON/YAML to <code>cdk.out/</code>. Pure local execution &mdash; no AWS account, credentials, or bootstrap required.</td></tr>
   </tbody>
 </table>
 
@@ -149,6 +149,11 @@
   <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Install the CLI.</strong> <code>npm install -g aws-cdk</code> (the CLI is Node-based even if your project is Python). Check with <code>cdk --version</code>.</p></div></div>
   <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Init the project.</strong> <code>mkdir finapp-infra &amp;&amp; cd finapp-infra &amp;&amp; cdk init app --language python</code>. Then <code>python -m venv .venv</code>, activate it, <code>pip install -r requirements.txt</code>.</p></div></div>
   <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Bootstrap the account/region.</strong> <code>cdk bootstrap aws://123456789012/us-east-1</code>. This creates a small <code>CDKToolkit</code> stack &mdash; an S3 bucket and ECR repo for assets, plus deploy roles. Do it once per account+region combination.</p></div></div>
+</div>
+
+<div class="callout warn">
+  <strong>Bootstrap is required, not optional &mdash; but only before you deploy</strong>
+  <code>cdk deploy</code> needs the bootstrap bucket to exist so it has somewhere to upload assets (Lambda zips, Docker images) before handing the template to CloudFormation. Skip it, and your first <code>cdk deploy</code> into a fresh account/region fails outright, telling you to bootstrap. It's a one-time setup per account+region &mdash; not per stack, not per deploy &mdash; so once it's done you never think about it again until AWS ships a newer bootstrap template version. <code>cdk synth</code>, by contrast, needs none of this: it never touches AWS at all (see below), so you can write and validate stacks long before you ever bootstrap anything.
 </div>
 
 <h3>Project layout after <code>cdk init</code></h3>
