@@ -1,4 +1,4 @@
-# AWS Architecture — 12 Core + 9 Bonus Lessons
+# AWS Architecture — 12 Core + 10 Bonus Lessons
 
 A self-paced curriculum for building a production-grade financial web app on AWS. Taught by analogy to Azure — if you know Azure, this series maps every concept to what you already understand.
 
@@ -40,6 +40,7 @@ Cognito (auth) · Secrets Manager · CloudWatch · X-Ray
 | 19 | [AWS AI-DLC](lessons/0019-ai-dlc.html) | AI-Driven Development Lifecycle — bolts, mob elaboration/construction, AI Pods, Inception/Construction/Operation, steering files, pros/cons |
 | 20 | [Amazon SageMaker AI](lessons/0020-sagemaker.html) | Managed ML platform, train/deploy/monitor loop, JumpStart LLM hosting & fine-tuning, SageMaker vs Bedrock, inference options, model governance |
 | 21 | [Lambda — Local Dev & Environments](lessons/0021-lambda-local-dev-environments.html) | Execution model, cold/warm starts, layers, testing without AWS (moto, SAM local, RIE, LocalStack), grouping Lambdas across QA/UAT/prod |
+| 22 | [AWS FIS & JMeter](lessons/0022-fis-jmeter-resilience-load-testing.html) | Chaos-engineering experiment templates & stop conditions, headless JMeter load tests at scale, combining both in a staging game day |
 
 Each lesson includes:
 - Azure analogies for every concept

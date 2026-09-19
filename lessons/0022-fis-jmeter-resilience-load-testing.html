@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 22 — AWS FIS &amp; JMeter: Resilience and Load Testing</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --purple: #7d3c98; --fis-red: #d13212; --jm-teal: #0e7c7b; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; } .tag-xml { color: #569cd6; } .attr { color: #9cdcfe; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.fis     { background: #fdeceb; border: 1px solid #f3b8b0; border-left: 4px solid var(--fis-red); }
+  .callout.jm      { background: #e9f6f5; border: 1px solid #a9dcd8; border-left: 4px solid var(--jm-teal); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .fis   { color: var(--fis-red); font-weight: bold; }
+  .jm    { color: var(--jm-teal); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 22 &middot; Resilience &amp; Performance</div>
+  <h1>AWS FIS &amp; JMeter: Resilience and Load Testing</h1>
+  <div class="subtitle">Two different questions about the same system &mdash; &ldquo;does it survive failure?&rdquo; (FIS) and &ldquo;does it survive traffic?&rdquo; (JMeter) &mdash; and how to ask both at once in a game day.</div>
+</header>
+
+<p><a href="0011-cloudwatch.html">Lesson 11</a> covered observing your system. This lesson covers <em>deliberately breaking it</em> to find out what happens before a real incident does. Two tools, two different jobs:</p>
+
+<table>
+  <thead><tr><th></th><th class="fis">AWS FIS</th><th class="jm">Apache JMeter</th></tr></thead>
+  <tbody>
+    <tr><td>Question it answers</td><td>If a dependency fails, does my system degrade gracefully?</td><td>If traffic spikes, does my system hold up and stay fast?</td></tr>
+    <tr><td>What it is</td><td>A managed AWS service that injects real faults into real resources</td><td>An open-source Java load-testing tool (not AWS-specific)</td></tr>
+    <tr><td>What it does</td><td>Stops an EC2 instance, throttles an API, kills an ECS task, forces an RDS failover, injects latency</td><td>Fires many concurrent HTTP/gRPC/JDBC requests and measures latency, throughput, and error rate</td></tr>
+    <tr><td>Discipline</td><td>Chaos engineering / resilience testing</td><td>Load / performance testing</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  AWS FIS &asymp; <span class="azure">Azure Chaos Studio</span> &mdash; both are managed fault-injection services with an "experiment" object, targets, and a safety/abort mechanism. JMeter has an even closer Azure mapping: <span class="azure">Azure Load Testing</span> is Microsoft's managed service built <em>directly on Apache JMeter</em> &mdash; you upload the same <code>.jmx</code> script either place. Knowing JMeter transfers 1:1 between clouds.
+</div>
+
+<h2>AWS FIS &mdash; Fault Injection Service</h2>
+
+<p><strong>FIS</strong> is AWS's managed chaos-engineering service. Instead of writing ad-hoc scripts that kill instances (risky, untracked, easy to forget to clean up), you define an <strong>experiment template</strong> &mdash; a declarative description of what to break, for how long, and when to stop &mdash; and FIS runs it, logs it, and reverts it.</p>
+
+<h3>Core concepts</h3>
+
+<table>
+  <thead><tr><th>Concept</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Experiment template</strong></td><td>The reusable definition: actions, targets, stop conditions, IAM role. Analogous to a CloudFormation template, but for chaos instead of infrastructure.</td></tr>
+    <tr><td><strong>Action</strong></td><td>The specific fault, e.g. <code>aws:ec2:stop-instances</code>, <code>aws:ecs:stop-task</code>, <code>aws:ssm:send-command</code> (for CPU/memory/disk stress via SSM), <code>aws:lambda:invocation-error</code>, <code>aws:rds:failover-db-cluster</code>, <code>aws:network:disrupt-connectivity</code>.</td></tr>
+    <tr><td><strong>Target</strong></td><td>Which resources the action applies to &mdash; selected by resource ARNs, tags, or a filter (e.g. "50% of instances tagged Environment=staging").</td></tr>
+    <tr><td><strong>Stop condition</strong></td><td>A CloudWatch alarm FIS watches during the experiment. If it fires, FIS <strong>automatically halts and rolls back</strong> &mdash; the single most important safety feature.</td></tr>
+    <tr><td><strong>Experiment role</strong></td><td>The IAM role FIS assumes to perform the action &mdash; scoped narrowly to exactly the resources and API calls the experiment needs.</td></tr>
+  </tbody>
+</table>
+
+<h3>Sample experiment: kill a random ECS task and watch it self-heal</h3>
+
+<pre><span class="file-label">fis-ecs-task-stop.json</span>
+{
+  <span class="key">"description"</span>: <span class="str">"Stop one running ECS task in the finapp-api service and verify auto-recovery"</span>,
+  <span class="key">"targets"</span>: {
+    <span class="key">"ecsTasks"</span>: {
+      <span class="key">"resourceType"</span>: <span class="str">"aws:ecs:task"</span>,
+      <span class="key">"resourceTags"</span>: { <span class="key">"Service"</span>: <span class="str">"finapp-api"</span>, <span class="key">"Environment"</span>: <span class="str">"staging"</span> },
+      <span class="key">"selectionMode"</span>: <span class="str">"COUNT(1)"</span>
+    }
+  },
+  <span class="key">"actions"</span>: {
+    <span class="key">"stopTask"</span>: {
+      <span class="key">"actionId"</span>: <span class="str">"aws:ecs:stop-task"</span>,
+      <span class="key">"parameters"</span>: {},
+      <span class="key">"targets"</span>: { <span class="key">"Tasks"</span>: <span class="str">"ecsTasks"</span> }
+    }
+  },
+  <span class="key">"stopConditions"</span>: [
+    { <span class="key">"source"</span>: <span class="str">"aws:cloudwatch:alarm"</span>, <span class="key">"value"</span>: <span class="str">"arn:aws:cloudwatch:us-east-1:111111111111:alarm:finapp-api-5xx-rate-high"</span> }
+  ],
+  <span class="key">"roleArn"</span>: <span class="str">"arn:aws:iam::111111111111:role/FisExperimentRole"</span>,
+  <span class="key">"tags"</span>: { <span class="key">"purpose"</span>: <span class="str">"resilience-test"</span> }
+}</pre>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Create the experiment role</strong> with only the permissions the target action needs (e.g. <code>ecs:StopTask</code>, <code>ecs:DescribeTasks</code>) &mdash; least privilege, exactly like a Lambda execution role.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Create a CloudWatch alarm</strong> for the stop condition first (e.g. 5xx error rate, ALB target unhealthy count) &mdash; an experiment without a stop condition is not allowed to be safe by default.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Create the template</strong>: <code>aws fis create-experiment-template --cli-input-json file://fis-ecs-task-stop.json</code></p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Start it</strong>: <code>aws fis start-experiment --experiment-template-id EXTxxxxx</code>. Watch ECS replace the killed task and CloudWatch/X-Ray for any error spike during the gap.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Review</strong>: did the ALB stop routing to the dead task fast enough? Did in-flight requests error? Did the new task start before the deployment's min-healthy-percent was violated? Fix what you find, then re-run to confirm.</p></div></div>
+</div>
+
+<h3>Common FIS actions for a financial app</h3>
+
+<table>
+  <thead><tr><th>What you're testing</th><th>FIS action</th></tr></thead>
+  <tbody>
+    <tr><td>Does ECS recover if a task dies mid-request?</td><td><code>aws:ecs:stop-task</code></td></tr>
+    <tr><td>Does the app survive an AZ or instance failure?</td><td><code>aws:ec2:stop-instances</code> / <code>aws:ec2:terminate-instances</code></td></tr>
+    <tr><td>Does RDS Multi-AZ failover actually happen transparently?</td><td><code>aws:rds:failover-db-cluster</code></td></tr>
+    <tr><td>Does the app handle a slow/unreachable downstream (payment processor, market data feed)?</td><td><code>aws:network:disrupt-connectivity</code> or <code>aws:ssm:send-command</code> running <code>tc</code> to add latency/packet loss</td></tr>
+    <tr><td>Does the Lambda-based trade confirmation path handle a broken dependency?</td><td><code>aws:lambda:invocation-error</code> / <code>aws:lambda:invocation-http-integration-response</code> (inject errors or added latency into invocations)</td></tr>
+    <tr><td>Does the app survive a noisy-neighbor CPU spike?</td><td><code>aws:ssm:send-command</code> running the SSM stress-ng document</td></tr>
+  </tbody>
+</table>
+
+<div class="callout fis">
+  <strong>Never run your first experiment in prod</strong>
+  Start in staging, with a stop condition wired to a real alarm, a small blast radius (<code>COUNT(1)</code>, one AZ, 10% of a fleet), and someone watching a dashboard live. Only promote a proven-safe experiment to a scheduled "game day" in prod, with the whole on-call team aware in advance &mdash; chaos engineering builds confidence deliberately, it isn't meant to surprise anyone.
+</div>
+
+<h2>Apache JMeter &mdash; load and performance testing</h2>
+
+<p><strong>JMeter</strong> is an open-source Java application (not AWS's) that simulates many concurrent users hitting your API, measuring response time, throughput, and error rate under load. A test plan is either built in the JMeter GUI or authored as XML (<code>.jmx</code>) and driven from the CLI.</p>
+
+<h3>A minimal test plan</h3>
+
+<pre><span class="file-label">trade-api-loadtest.jmx (excerpt)</span>
+<span class="tag-xml">&lt;ThreadGroup</span> <span class="attr">testname</span>=<span class="str">"TradeApiUsers"</span><span class="tag-xml">&gt;</span>
+  <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"ThreadGroup.num_threads"</span><span class="tag-xml">&gt;</span>200<span class="tag-xml">&lt;/stringProp&gt;</span>   <span class="cmt">&lt;!-- 200 virtual users --&gt;</span>
+  <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"ThreadGroup.ramp_time"</span><span class="tag-xml">&gt;</span>60<span class="tag-xml">&lt;/stringProp&gt;</span>    <span class="cmt">&lt;!-- ramp up over 60s, not all at once --&gt;</span>
+  <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"ThreadGroup.duration"</span><span class="tag-xml">&gt;</span>300<span class="tag-xml">&lt;/stringProp&gt;</span>   <span class="cmt">&lt;!-- run for 5 minutes --&gt;</span>
+  <span class="tag-xml">&lt;HTTPSamplerProxy</span> <span class="attr">testname</span>=<span class="str">"POST /api/trades"</span><span class="tag-xml">&gt;</span>
+    <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"HTTPSampler.domain"</span><span class="tag-xml">&gt;</span>staging-api.finapp.com<span class="tag-xml">&lt;/stringProp&gt;</span>
+    <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"HTTPSampler.path"</span><span class="tag-xml">&gt;</span>/api/trades<span class="tag-xml">&lt;/stringProp&gt;</span>
+    <span class="tag-xml">&lt;stringProp</span> <span class="attr">name</span>=<span class="str">"HTTPSampler.method"</span><span class="tag-xml">&gt;</span>POST<span class="tag-xml">&lt;/stringProp&gt;</span>
+  <span class="tag-xml">&lt;/HTTPSamplerProxy&gt;</span>
+<span class="tag-xml">&lt;/ThreadGroup&gt;</span></pre>
+
+<pre><span class="file-label">terminal — run headless (CLI mode), never the GUI for a real test</span>
+jmeter -n -t trade-api-loadtest.jmx \
+  -l results.jtl \
+  -e -o report/       <span class="cmt"># -e -o generates an HTML dashboard report from the results</span></pre>
+
+<div class="callout warn">
+  <strong>Never run a real load test from the GUI</strong>
+  The JMeter GUI itself consumes significant CPU/memory rendering live results, which skews your numbers and caps how many threads you can realistically simulate from one machine. Build/debug the plan in the GUI with a handful of threads, then always execute the real test <strong>headless</strong> (<code>-n</code>) from the CLI, ideally from a dedicated machine or fleet, not your laptop.
+</div>
+
+<h3>Running JMeter at real scale on AWS</h3>
+
+<table>
+  <thead><tr><th>Approach</th><th>When to use it</th></tr></thead>
+  <tbody>
+    <tr><td>Single EC2 instance, CLI mode</td><td>Small tests; a few hundred to a few thousand concurrent threads depending on instance size</td></tr>
+    <tr><td><strong>Distributed JMeter</strong> (1 controller + N worker EC2 instances, <code>-R</code> flag)</td><td>Need more concurrent load than one box can generate; workers run headless and report back to the controller</td></tr>
+    <tr><td><strong>Distributed Load Testing on AWS</strong> (AWS Solutions Library reference architecture)</td><td>Want a managed, containerized (ECS Fargate) JMeter fleet with a web console, without hand-building the distributed setup yourself</td></tr>
+    <tr><td><strong>AWSMeter plugin</strong></td><td>Load-testing AWS-native async services directly &mdash; publish to SQS, Kinesis, SNS, or Cognito from a JMeter sampler instead of only HTTP</td></tr>
+    <tr><td>Locust / k6 (alternatives)</td><td>Prefer Python or JS test scripts over XML/GUI-authored <code>.jmx</code> &mdash; same load-testing role, different authoring ergonomics</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>Load-test from inside AWS's policy, not around it</strong>
+  Large-scale load testing against your own AWS-hosted endpoints from your own AWS account is generally fine, but sustained high-volume testing that could look like a DDoS (especially against endpoints fronted by CloudFront/Shield, or targeting someone else's infrastructure) requires prior authorization from AWS. Review the <a href="https://aws.amazon.com/security/penetration-testing/" target="_blank">AWS simulated-event policy</a> before a large test, and always target a non-prod endpoint first.
+</div>
+
+<h2>Putting them together: the Game Day pattern</h2>
+
+<p>The two tools answer their strongest question when combined: does the system stay <em>fast</em> while it's also <em>failing</em>? A clean FIS experiment against an idle system, or a clean JMeter run against a fully healthy system, both under-test what actually happens in production &mdash; failures and traffic spikes correlate (a slow downstream causes both retries <em>and</em> load).</p>
+
+<div class="flow">
+  <div class="ftitle">A staging game day</div>
+1. Start a JMeter test generating realistic steady-state load against staging
+   <span class="arrow">&rarr;</span> confirm baseline latency/error rate on the CloudWatch dashboard (Lesson 11)
+2. Mid-test, start an FIS experiment: stop an ECS task, or inject RDS failover, or add downstream latency
+   <span class="arrow">&rarr;</span> watch the same dashboard for the failure's actual impact — not the theoretical impact
+3. FIS stop condition (or a human) halts the experiment if the alarm fires
+4. Let JMeter keep running after the experiment ends — measure time-to-recovery, not just impact
+5. Record: peak error rate, p99 latency during the fault, time to full recovery — this becomes your resilience baseline for next quarter's game day
+</div>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>Every FIS experiment template has a stop condition wired to a real CloudWatch alarm &mdash; no template is allowed to run unattended without one</li>
+  <li>FIS experiment IAM roles scoped to the exact resources/actions the experiment needs, tagged and reviewed like any other IAM role</li>
+  <li>First run of any new experiment is in staging, small blast radius, with someone watching live</li>
+  <li>JMeter tests always run headless (<code>-n</code>) for real numbers; GUI is for authoring/debugging only</li>
+  <li>Load tests ramp up gradually (<code>ramp_time</code>) rather than firing all threads instantly, to avoid a self-inflicted thundering herd</li>
+  <li>Large-scale load tests against AWS-hosted endpoints checked against AWS's simulated-event / DDoS-testing policy before running</li>
+  <li>Game days scheduled with the on-call team informed in advance, and combine both tools rather than testing failure and load in isolation</li>
+  <li>Results captured as a baseline (p99 latency, error rate, recovery time) and compared release over release, not just checked once and forgotten</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on AWS FIS and JMeter.</p>
+
+  <div class="question" id="q1">
+    <p>1. What is the purpose of a <strong>stop condition</strong> in an AWS FIS experiment template?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> It sets how long the experiment runs before ending normally</label>
+      <label><input type="radio" name="q1" value="b"> It links a CloudWatch alarm to the experiment so FIS automatically halts and rolls back if things get worse than expected</label>
+      <label><input type="radio" name="q1" value="c"> It limits which IAM role can start the experiment</label>
+      <label><input type="radio" name="q1" value="d"> It stops JMeter load tests from running during the same window</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. A stop condition is a CloudWatch alarm FIS actively watches during the run — if it fires, FIS immediately halts the experiment and reverts the fault. It is the core safety mechanism that makes deliberately injecting failure into a real system responsible rather than reckless.','Not quite. Duration is a separate action parameter, IAM is handled by the experiment role, and FIS has no built-in awareness of JMeter. A stop condition specifically ties an experiment to a CloudWatch alarm as an automatic abort trigger.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Why should a real JMeter load test be run with <code>-n</code> (headless/CLI mode) instead of the GUI?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> The GUI cannot send HTTP requests, only view results</label>
+      <label><input type="radio" name="q2" value="b"> The GUI itself consumes CPU/memory rendering live results, which skews measurements and limits how much load one machine can realistically generate</label>
+      <label><input type="radio" name="q2" value="c"> Headless mode is required by AWS's terms of service for any load test</label>
+      <label><input type="radio" name="q2" value="d"> The GUI only supports testing AWS Lambda, not HTTP APIs</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. Rendering the GUI competes with JMeter\'s own thread-generation work for the machine\'s CPU and memory, which both understates the load client capacity and pollutes the timing measurements. Use the GUI only to build and debug a small-scale test plan, then always execute for real headless.','Not quite. The GUI can send real requests and there is no AWS-specific requirement here — the issue is purely resource contention: the GUI\'s own rendering overhead distorts both capacity and timing measurements during a real test.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. Why combine JMeter and FIS in a single "game day" instead of running each in isolation?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Running them separately isn't technically possible — FIS requires an active JMeter test to start</label>
+      <label><input type="radio" name="q3" value="b"> Real incidents often combine failure and load together (e.g. a slow downstream causes retries that add load), so testing them together surfaces the actual production failure mode</label>
+      <label><input type="radio" name="q3" value="c"> It's cheaper to run one combined test than two separate ones</label>
+      <label><input type="radio" name="q3" value="d"> AWS bills FIS and JMeter together only when run in the same time window</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. A clean FIS experiment against an idle system, or a clean load test against a fully healthy one, both under-test reality — failures and traffic spikes correlate. Injecting a fault while under realistic steady-state load reveals how the system actually behaves when both happen together, which is what a real incident looks like.','Not quite. There is no technical dependency between the two tools and no shared-billing mechanism. The reason to combine them is that isolated tests miss the compounding effect real incidents show — failure under load behaves differently than failure alone.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Where should you run the first execution of a brand-new FIS experiment template?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Directly in production, since that's the only environment worth testing resilience in</label>
+      <label><input type="radio" name="q4" value="b"> In staging, with a small blast radius, a real stop condition, and someone watching a live dashboard</label>
+      <label><input type="radio" name="q4" value="c"> In a JMeter test plan, since FIS experiments run inside JMeter</label>
+      <label><input type="radio" name="q4" value="d"> It doesn't matter — FIS experiments are always fully reversible automatically regardless of environment</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Prove an experiment is safe on a small blast radius in staging, with a real stop condition and a human watching, before ever promoting it to a scheduled, whole-team-aware prod game day. FIS gives you the tools to be safe; it doesn\'t make an untested experiment safe by default.','Not quite. FIS is independent of JMeter (no nesting relationship), and while FIS supports rollback and stop conditions, it doesn\'t make production the right place to validate a brand-new, unproven experiment. Staging first, small blast radius, real alarm, human watching.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  <strong>AWS FIS</strong> is a managed chaos-engineering service: define an experiment template (actions + targets + a CloudWatch-alarm stop condition + a scoped IAM role), run it against a small blast radius in staging first, and use it to prove your system actually self-heals rather than assuming it does. <strong>Apache JMeter</strong> is an open-source load-testing tool (mirrored by Azure's managed Load Testing service) that fires many concurrent requests and reports latency/throughput/error rate &mdash; author in the GUI, always execute headless (<code>-n</code>) at scale, distributed across EC2/Fargate for real load. Run them together in a staging game day &mdash; inject a fault mid-load-test &mdash; because real incidents combine failure and traffic, and that's the only way to find out if your system survives both at once.
+</div>
+
+<div class="lesson-nav">
+  <a href="0011-cloudwatch.html">&larr; L11: CloudWatch</a> &middot;
+  <a href="0004-ecs-fargate.html">&larr; L4: ECS Fargate</a> &middot;
+  <a href="0005-rds.html">&larr; L5: RDS</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: AWS Resilience Hub for scoring/tracking resilience posture &middot; k6 / Locust as code-first JMeter alternatives &middot; Distributed Load Testing on AWS (Solutions Library) &middot; AWS Well-Architected Reliability pillar review<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" target="_blank">AWS Fault Injection Service User Guide</a> &middot; <a href="https://jmeter.apache.org/usermanual/index.html" target="_blank">Apache JMeter User Manual</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/fis/latest/userguide/what-is.html" target="_blank">AWS FIS User Guide</a> &middot;
+  <a href="https://aws.amazon.com/fis/" target="_blank">AWS Fault Injection Service</a> &middot;
+  <a href="https://jmeter.apache.org/usermanual/index.html" target="_blank">Apache JMeter User Manual</a> &middot;
+  <a href="https://aws.amazon.com/solutions/implementations/distributed-load-testing-on-aws/" target="_blank">Distributed Load Testing on AWS</a> &middot;
+  <a href="https://github.com/JoseLuisSR/awsmeter" target="_blank">AWSMeter plugin</a> &middot;
+  <a href="https://aws.amazon.com/security/penetration-testing/" target="_blank">AWS simulated-event / testing policy</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
