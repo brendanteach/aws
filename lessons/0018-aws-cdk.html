@@ -96,7 +96,7 @@
 <header>
   <div class="lesson-number">Lesson 18 &middot; Infrastructure as Code</div>
   <h1>AWS CDK: Infrastructure as Real Code</h1>
-  <div class="subtitle">Define your AWS stack in Python (or TypeScript) with loops, functions, and type-checking &mdash; the CDK compiles it down to CloudFormation and deploys it.</div>
+  <div class="subtitle">Define your AWS stack in TypeScript (or Python) with loops, functions, and type-checking &mdash; the CDK compiles it down to CloudFormation and deploys it.</div>
 </header>
 
 <p><a href="0009-terraform.html">Lesson 9</a> taught Terraform: infrastructure described in HCL, a purpose-built configuration language. The <strong>AWS Cloud Development Kit (CDK)</strong> takes a different bet &mdash; you write infrastructure in a <em>general-purpose programming language</em> you already know, and it <strong>synthesizes</strong> a CloudFormation template that AWS then deploys. Same goal (declarative, version-controlled, repeatable infra), different authoring experience.</p>
@@ -105,12 +105,12 @@
 
 <div class="callout info">
   <strong>Language support</strong>
-  Every example here is Python, matching this repo's stack, but CDK is originally and primarily a <strong>TypeScript</strong> tool &mdash; the CLI itself runs on Node.js regardless of which language your stack is written in. <code>cdk init app --language typescript</code> gives you the identical App/Stack/Construct model and the same <code>synth</code>/<code>diff</code>/<code>deploy</code>/<code>destroy</code> commands; only the syntax and package manager (<code>npm</code> vs. <code>pip</code>) differ. Java, C#, and Go are supported too.
+  Every example here is TypeScript &mdash; CDK's original and primary language; the CLI itself runs on Node.js regardless of which language your stack is written in. If your team runs a Python stack instead, <code>cdk init app --language python</code> gives you the identical App/Stack/Construct model and the same <code>synth</code>/<code>diff</code>/<code>deploy</code>/<code>destroy</code> commands; only the syntax and package manager (<code>pip</code> vs. <code>npm</code>) differ. Java, C#, and Go are supported too.
 </div>
 
 <div class="callout info">
   <strong>Azure anchor</strong>
-  CloudFormation is Azure's <span class="azure">ARM / Bicep</span> &mdash; a declarative template the platform reconciles. The CDK is the layer above it, like using <span class="azure">Azure Bicep modules</span> plus the imperative power of <span class="azure">Pulumi</span> or the <span class="azure">Azure SDK</span>: you write code, it emits the template. If you've written Bicep modules with parameters and loops, CDK constructs will feel familiar &mdash; just in Python instead of a DSL.
+  CloudFormation is Azure's <span class="azure">ARM / Bicep</span> &mdash; a declarative template the platform reconciles. The CDK is the layer above it, like using <span class="azure">Azure Bicep modules</span> plus the imperative power of <span class="azure">Pulumi</span> or the <span class="azure">Azure SDK</span>: you write code, it emits the template. If you've written Bicep modules with parameters and loops, CDK constructs will feel familiar &mdash; just in TypeScript instead of a DSL.
 </div>
 
 <h2>The mental model</h2>
@@ -120,7 +120,7 @@
 <table>
   <thead><tr><th>Concept</th><th>What it is</th></tr></thead>
   <tbody>
-    <tr><td><strong>App</strong></td><td>The root of your CDK program. Contains one or more stacks. This is the <code>app.py</code> entry point.</td></tr>
+    <tr><td><strong>App</strong></td><td>The root of your CDK program. Contains one or more stacks. This is the <code>bin/*.ts</code> entry point.</td></tr>
     <tr><td><strong>Stack</strong></td><td>A unit of deployment = one CloudFormation stack. Maps to one account + region. You deploy, update, and delete a stack as a whole.</td></tr>
     <tr><td><strong>Construct</strong></td><td>A reusable building block representing one or more AWS resources. Constructs nest inside stacks and inside each other.</td></tr>
     <tr><td><strong>synth</strong></td><td>The compile step: <code>cdk synth</code> runs your code and writes CloudFormation JSON/YAML to <code>cdk.out/</code>. Pure local execution &mdash; no AWS account, credentials, or bootstrap required.</td></tr>
@@ -129,7 +129,7 @@
 
 <div class="flow">
   <div class="ftitle">What happens on deploy</div>
-  Your Python code <span class="arrow">&rarr;</span> <code>cdk synth</code> runs it <span class="arrow">&rarr;</span> CloudFormation template in <code>cdk.out/</code> <span class="arrow">&rarr;</span> assets (Lambda zips, Docker images) uploaded to the bootstrap bucket/ECR <span class="arrow">&rarr;</span> <code>cdk deploy</code> hands the template to CloudFormation <span class="arrow">&rarr;</span> CloudFormation creates / updates / deletes resources to match
+  Your TypeScript code <span class="arrow">&rarr;</span> <code>cdk synth</code> runs it <span class="arrow">&rarr;</span> CloudFormation template in <code>cdk.out/</code> <span class="arrow">&rarr;</span> assets (Lambda zips, Docker images) uploaded to the bootstrap bucket/ECR <span class="arrow">&rarr;</span> <code>cdk deploy</code> hands the template to CloudFormation <span class="arrow">&rarr;</span> CloudFormation creates / updates / deletes resources to match
 </div>
 
 <h3>Construct levels &mdash; L1, L2, L3</h3>
@@ -151,8 +151,8 @@
 <h2>Setup &mdash; one time per machine, one time per account</h2>
 
 <div class="steps">
-  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Install the CLI.</strong> <code>npm install -g aws-cdk</code> (the CLI is Node-based even if your project is Python). Check with <code>cdk --version</code>.</p></div></div>
-  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Init the project.</strong> <code>mkdir finapp-infra &amp;&amp; cd finapp-infra &amp;&amp; cdk init app --language python</code>. Then <code>python -m venv .venv</code>, activate it, <code>pip install -r requirements.txt</code>.</p></div></div>
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Install the CLI.</strong> <code>npm install -g aws-cdk</code>. Check with <code>cdk --version</code>.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Init the project.</strong> <code>mkdir finapp-infra &amp;&amp; cd finapp-infra &amp;&amp; cdk init app --language typescript</code>. This also runs <code>npm install</code> for you (<code>aws-cdk-lib</code>, <code>constructs</code>, <code>typescript</code>, <code>jest</code> are added to <code>package.json</code>).</p></div></div>
   <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>Bootstrap the account/region.</strong> <code>cdk bootstrap aws://123456789012/us-east-1</code>. This creates a small <code>CDKToolkit</code> stack &mdash; an S3 bucket and ECR repo for assets, plus deploy roles. Do it once per account+region combination.</p></div></div>
 </div>
 
@@ -164,64 +164,73 @@
 <h3>Project layout after <code>cdk init</code></h3>
 
 <pre><span class="file-label">finapp-infra/</span>
-app.py                  <span class="cmt"># entry point — instantiates the app and stacks</span>
-cdk.json                <span class="cmt"># tells the CLI how to run your app ("python3 app.py")</span>
-requirements.txt        <span class="cmt"># aws-cdk-lib, constructs</span>
-finapp_infra/
-  __init__.py
-  finapp_infra_stack.py <span class="cmt"># your stack definition</span>
-tests/
-  unit/test_finapp_infra_stack.py</pre>
+bin/
+  finapp-infra.ts       <span class="cmt"># entry point — instantiates the app and stacks</span>
+lib/
+  agent-tools-stack.ts  <span class="cmt"># your stack definition</span>
+test/
+  agent-tools-stack.test.ts
+cdk.json                 <span class="cmt"># tells the CLI how to run your app ("npx ts-node bin/finapp-infra.ts")</span>
+package.json              <span class="cmt"># aws-cdk-lib, constructs, typescript, jest, ts-node</span>
+tsconfig.json</pre>
 
 <h2>Writing a stack</h2>
 
 <p>Here is a real stack: the DynamoDB table and tool Lambda from Lesson 17, wired together with a grant.</p>
 
-<pre><span class="file-label">finapp_infra/agent_tools_stack.py</span>
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> Stack, Duration, RemovalPolicy
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_dynamodb <span class="kw">as</span> dynamodb
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_lambda <span class="kw">as</span> _lambda
-<span class="kw">from</span> constructs <span class="kw">import</span> Construct
+<pre><span class="file-label">lib/agent-tools-stack.ts</span>
+<span class="kw">import</span> { Stack, StackProps, Duration, RemovalPolicy } <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> dynamodb <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-dynamodb'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> lambda <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-lambda'</span>;
+<span class="kw">import</span> { Construct } <span class="kw">from</span> <span class="str">'constructs'</span>;
 
+<span class="kw">export class</span> <span class="cls">AgentToolsStack</span> <span class="kw">extends</span> Stack {
+  <span class="fn">constructor</span>(scope: Construct, id: <span class="cls">string</span>, props?: StackProps) {
+    <span class="fn">super</span>(scope, id, props);
 
-<span class="kw">class</span> <span class="cls">AgentToolsStack</span>(Stack):
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, scope: Construct, cid: <span class="cls">str</span>, **kwargs):
-        <span class="fn">super</span>().<span class="fn">__init__</span>(scope, cid, **kwargs)
+    <span class="cmt">// L2 DynamoDB table — on-demand, PK+SK, encryption on by default</span>
+    <span class="kw">const</span> table = <span class="kw">new</span> dynamodb.<span class="cls">Table</span>(<span class="kw">this</span>, <span class="str">'Customers'</span>, {
+      partitionKey: { name: <span class="str">'pk'</span>, type: dynamodb.AttributeType.STRING },
+      sortKey: { name: <span class="str">'sk'</span>, type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      pointInTimeRecovery: <span class="kw">true</span>,
+      removalPolicy: RemovalPolicy.RETAIN,   <span class="cmt">// keep the data if the stack is deleted</span>
+    });
 
-        <span class="cmt"># L2 DynamoDB table — on-demand, PK+SK, encryption on by default</span>
-        table = dynamodb.<span class="cls">Table</span>(self, <span class="str">"Customers"</span>,
-            partition_key=dynamodb.<span class="cls">Attribute</span>(name=<span class="str">"pk"</span>, type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.<span class="cls">Attribute</span>(name=<span class="str">"sk"</span>, type=dynamodb.AttributeType.STRING),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            point_in_time_recovery=<span class="kw">True</span>,
-            removal_policy=RemovalPolicy.RETAIN,   <span class="cmt"># keep the data if the stack is deleted</span>
-        )
+    <span class="cmt">// L2 Lambda — code bundled from a local dir and uploaded automatically</span>
+    <span class="kw">const</span> fn = <span class="kw">new</span> lambda.<span class="cls">Function</span>(<span class="kw">this</span>, <span class="str">'GetCustomerProfile'</span>, {
+      runtime: lambda.Runtime.PYTHON_3_13,
+      handler: <span class="str">'handler.lambda_handler'</span>,
+      code: lambda.Code.<span class="fn">fromAsset</span>(<span class="str">'lambda/get_customer_profile'</span>),
+      timeout: Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
+      environment: { TABLE_NAME: table.tableName },
+    });
 
-        <span class="cmt"># L2 Lambda — code bundled from a local dir and uploaded automatically</span>
-        fn = _lambda.<span class="cls">Function</span>(self, <span class="str">"GetCustomerProfile"</span>,
-            runtime=_lambda.Runtime.PYTHON_3_13,
-            handler=<span class="str">"handler.lambda_handler"</span>,
-            code=_lambda.Code.<span class="fn">from_asset</span>(<span class="str">"lambda/get_customer_profile"</span>),
-            timeout=Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
-            environment={<span class="str">"TABLE_NAME"</span>: table.table_name},
-        )
+    <span class="cmt">// The grant — generates a least-privilege IAM policy and attaches it</span>
+    table.<span class="fn">grantReadData</span>(fn);
+  }
+}</pre>
 
-        <span class="cmt"># The grant — generates a least-privilege IAM policy and attaches it</span>
-        table.<span class="fn">grant_read_data</span>(fn)</pre>
+<pre><span class="file-label">bin/finapp-infra.ts</span>
+<span class="kw">import</span> * <span class="kw">as</span> cdk <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> { AgentToolsStack } <span class="kw">from</span> <span class="str">'../lib/agent-tools-stack'</span>;
 
-<pre><span class="file-label">app.py</span>
-<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
-<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+<span class="kw">const</span> app = <span class="kw">new</span> cdk.<span class="cls">App</span>();
 
-app = cdk.<span class="cls">App</span>()
+<span class="cmt">// One stack per environment — different account/region, same code</span>
+<span class="kw">new</span> <span class="cls">AgentToolsStack</span>(app, <span class="str">'AgentTools-staging'</span>, {
+  env: { account: <span class="str">'111111111111'</span>, region: <span class="str">'us-east-1'</span> },
+});
+<span class="kw">new</span> <span class="cls">AgentToolsStack</span>(app, <span class="str">'AgentTools-prod'</span>, {
+  env: { account: <span class="str">'222222222222'</span>, region: <span class="str">'us-east-1'</span> },
+});
 
-<span class="cmt"># One stack per environment — different account/region, same code</span>
-AgentToolsStack(app, <span class="str">"AgentTools-staging"</span>,
-    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"111111111111"</span>, region=<span class="str">"us-east-1"</span>))
-AgentToolsStack(app, <span class="str">"AgentTools-prod"</span>,
-    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"222222222222"</span>, region=<span class="str">"us-east-1"</span>))
+app.<span class="fn">synth</span>();</pre>
 
-app.<span class="fn">synth</span>()</pre>
+<div class="callout info">
+  <strong>The Lambda's runtime is a separate choice from the CDK's language</strong>
+  The stack above is TypeScript, but <code>runtime: lambda.Runtime.PYTHON_3_13</code> still points at a local directory of <em>Python</em> handler code (the same <code>handler.lambda_handler</code> from Lessons 10, 16, and 21). CDK's authoring language and your Lambda's execution runtime are independent decisions &mdash; a TypeScript CDK app deploying Python (or Node, Java, Go&hellip;) functions is completely normal.
+</div>
 
 <div class="callout cdk">
   <strong>&ldquo;Real code&rdquo; means real code</strong>
@@ -253,60 +262,63 @@ app.<span class="fn">synth</span>()</pre>
 
 <div class="callout warn">
   <strong><code>cdk synth</code> does not run your tests</strong>
-  They're two separate steps. <code>cdk synth</code> just renders your <code>app.py</code> to CloudFormation &mdash; it happens to run your Python, so it'll surface an import error or a bad construct property, but it never discovers or executes <code>tests/unit/test_*.py</code>. The assertion tests below are run separately with <code>pytest</code>; each one calls <code>Template.from_stack(...)</code> itself, which does its own in-process synth of that one stack. Wire both into CI as independent commands &mdash; <code>cdk synth</code> catches code errors, <code>pytest tests/</code> catches the specific invariants (encryption, PITR, IAM) you assert on.
+  They're two separate steps. <code>cdk synth</code> just renders your <code>bin/*.ts</code> entry point to CloudFormation &mdash; it happens to run your TypeScript, so it'll surface an import error or a bad construct property, but it never discovers or executes <code>test/*.test.ts</code>. The assertion tests below are run separately with <strong>Jest</strong> (scaffolded automatically by <code>cdk init --language typescript</code>); each one calls <code>Template.fromStack(...)</code> itself, which does its own in-process synth of that one stack. Wire both into CI as independent commands &mdash; <code>cdk synth</code> catches code errors, <code>npm test</code> catches the specific invariants (encryption, PITR, IAM) you assert on.
 </div>
 
-<pre><span class="file-label">tests/unit/test_agent_tools_stack.py</span>
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> App
-<span class="kw">from</span> aws_cdk.assertions <span class="kw">import</span> Template, Match
-<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+<pre><span class="file-label">test/agent-tools-stack.test.ts</span>
+<span class="kw">import</span> { App } <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> { Template } <span class="kw">from</span> <span class="str">'aws-cdk-lib/assertions'</span>;
+<span class="kw">import</span> { AgentToolsStack } <span class="kw">from</span> <span class="str">'../lib/agent-tools-stack'</span>;
 
-<span class="kw">def</span> <span class="fn">test_table_has_pitr_and_retain</span>():
-    template = Template.<span class="fn">from_stack</span>(AgentToolsStack(App(), <span class="str">"t"</span>))
+test(<span class="str">'table has PITR and RETAIN'</span>, () => {
+  <span class="kw">const</span> template = Template.<span class="fn">fromStack</span>(<span class="kw">new</span> <span class="cls">AgentToolsStack</span>(<span class="kw">new</span> App(), <span class="str">'t'</span>));
 
-    template.<span class="fn">has_resource_properties</span>(<span class="str">"AWS::DynamoDB::Table"</span>, {
-        <span class="str">"PointInTimeRecoverySpecification"</span>: {<span class="str">"PointInTimeRecoveryEnabled"</span>: <span class="kw">True</span>},
-    })
-    template.<span class="fn">has_resource</span>(<span class="str">"AWS::DynamoDB::Table"</span>, {<span class="str">"DeletionPolicy"</span>: <span class="str">"Retain"</span>})
+  template.<span class="fn">hasResourceProperties</span>(<span class="str">'AWS::DynamoDB::Table'</span>, {
+    PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: <span class="kw">true</span> },
+  });
+  template.<span class="fn">hasResource</span>(<span class="str">'AWS::DynamoDB::Table'</span>, { DeletionPolicy: <span class="str">'Retain'</span> });
+});
 
-<span class="kw">def</span> <span class="fn">test_lambda_cannot_write_the_table</span>():
-    template = Template.<span class="fn">from_stack</span>(AgentToolsStack(App(), <span class="str">"t"</span>))
-    <span class="cmt"># grant_read_data must NOT include PutItem / UpdateItem / DeleteItem</span>
-    template.<span class="fn">resource_count_is</span>(<span class="str">"AWS::IAM::Policy"</span>, <span class="num">1</span>)</pre>
+test(<span class="str">'lambda cannot write the table'</span>, () => {
+  <span class="kw">const</span> template = Template.<span class="fn">fromStack</span>(<span class="kw">new</span> <span class="cls">AgentToolsStack</span>(<span class="kw">new</span> App(), <span class="str">'t'</span>));
+  <span class="cmt">// grantReadData must NOT include PutItem / UpdateItem / DeleteItem</span>
+  template.<span class="fn">resourceCountIs</span>(<span class="str">'AWS::IAM::Policy'</span>, <span class="num">1</span>);
+});</pre>
 
 <h2>Validating a stack before you deploy</h2>
 
 <p>Nothing here requires an AWS account. Run all four before you ever run <code>cdk deploy</code>:</p>
 
 <div class="steps">
-  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong><code>cdk synth</code></strong> &mdash; runs your Python and renders CloudFormation. Catches import errors, bad construct props, and typos. If it doesn't synth, it can't deploy.</p></div></div>
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong><code>cdk synth</code></strong> &mdash; runs your TypeScript and renders CloudFormation. Catches import errors, bad construct props, and typos. If it doesn't synth, it can't deploy.</p></div></div>
   <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Assertion tests</strong> (shown above) &mdash; assert on the synthesized template: encryption on, PITR on, exact IAM actions granted. Runs in CI on every PR, no AWS calls.</p></div></div>
   <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong><code>cdk-nag</code></strong> &mdash; a library of compliance rules (AwsSolutions, HIPAA, PCI-DSS packs) that runs during <code>synth</code> and fails the build on violations, with a suppression mechanism for accepted exceptions.</p></div></div>
   <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong><code>cdk diff</code></strong> &mdash; the only one of the four that talks to AWS (read-only, to compare against the deployed stack). Run against staging before every prod deploy; treat any <code>[-/+]</code> replacement as blocking until explained.</p></div></div>
 </div>
 
-<pre><span class="file-label">app.py — wiring cdk-nag in</span>
-<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
-<span class="kw">from</span> cdk_nag <span class="kw">import</span> AwsSolutionsChecks, NagSuppressions
-<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+<pre><span class="file-label">bin/finapp-infra.ts — wiring cdk-nag in</span>
+<span class="kw">import</span> * <span class="kw">as</span> cdk <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> { AwsSolutionsChecks, NagSuppressions } <span class="kw">from</span> <span class="str">'cdk-nag'</span>;
+<span class="kw">import</span> { AgentToolsStack } <span class="kw">from</span> <span class="str">'../lib/agent-tools-stack'</span>;
 
-app = cdk.<span class="cls">App</span>()
-stack = <span class="cls">AgentToolsStack</span>(app, <span class="str">"AgentTools-staging"</span>,
-    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"111111111111"</span>, region=<span class="str">"us-east-1"</span>))
+<span class="kw">const</span> app = <span class="kw">new</span> cdk.<span class="cls">App</span>();
+<span class="kw">const</span> stack = <span class="kw">new</span> <span class="cls">AgentToolsStack</span>(app, <span class="str">'AgentTools-staging'</span>, {
+  env: { account: <span class="str">'111111111111'</span>, region: <span class="str">'us-east-1'</span> },
+});
 
-<span class="cmt"># Fails `cdk synth` if any resource violates the AwsSolutions rule pack</span>
-cdk.Aspects.<span class="fn">of</span>(app).<span class="fn">add</span>(<span class="cls">AwsSolutionsChecks</span>(verbose=<span class="kw">True</span>))
+<span class="cmt">// Fails `cdk synth` if any resource violates the AwsSolutions rule pack</span>
+cdk.Aspects.<span class="fn">of</span>(app).<span class="fn">add</span>(<span class="kw">new</span> <span class="cls">AwsSolutionsChecks</span>({ verbose: <span class="kw">true</span> }));
 
-<span class="cmt"># Documented, reviewed exception — not a silent bypass</span>
-NagSuppressions.<span class="fn">add_resource_suppressions</span>(stack, [
-    {<span class="str">"id"</span>: <span class="str">"AwsSolutions-IAM4"</span>, <span class="str">"reason"</span>: <span class="str">"Lambda basic execution managed policy is acceptable here"</span>},
-])
+<span class="cmt">// Documented, reviewed exception — not a silent bypass</span>
+NagSuppressions.<span class="fn">addResourceSuppressions</span>(stack, [
+  { id: <span class="str">'AwsSolutions-IAM4'</span>, reason: <span class="str">'Lambda basic execution managed policy is acceptable here'</span> },
+]);
 
-app.<span class="fn">synth</span>()</pre>
+app.<span class="fn">synth</span>();</pre>
 
 <div class="callout warn">
   <strong>Type-check it too</strong>
-  CDK stacks are ordinary Python (or TS) &mdash; run <code>mypy</code> / <code>pyright</code> and your linter over the infra package in CI exactly as you would application code. A wrong keyword argument to a construct is a typo the type checker catches before <code>synth</code> even runs.
+  CDK stacks are ordinary TypeScript (or Python) &mdash; run <code>tsc --noEmit</code> and your linter (<code>eslint</code>) over the infra package in CI exactly as you would application code. A wrong property name on a construct is a typo the type checker catches before <code>synth</code> even runs.
 </div>
 
 <h2>Running it on your laptop with mocks &mdash; no AWS account touched</h2>
@@ -316,8 +328,8 @@ app.<span class="fn">synth</span>()</pre>
 <table>
   <thead><tr><th>Layer</th><th>What it mocks</th><th>When to reach for it</th></tr></thead>
   <tbody>
-    <tr><td><code>cdk synth</code></td><td>Nothing needs mocking &mdash; it's pure Python, no network calls</td><td>Every save, via <code>cdk watch</code> or a file-watcher; confirms the stack still compiles</td></tr>
-    <tr><td><strong>moto</strong></td><td>The boto3 AWS API surface, in-process</td><td>Unit-testing your <em>Lambda handler code</em> (not the infra) &mdash; fake DynamoDB/S3 in the test process, zero network</td></tr>
+    <tr><td><code>cdk synth</code></td><td>Nothing needs mocking &mdash; it's pure TypeScript, no network calls</td><td>Every save, via <code>cdk watch</code> or a file-watcher; confirms the stack still compiles</td></tr>
+    <tr><td><strong>moto</strong></td><td>The boto3 AWS API surface, in-process</td><td>Unit-testing your <em>Lambda handler code</em> &mdash; fake DynamoDB/S3 in the test process, zero network. This tests the Lambda's own runtime (here, Python) independently of what language the CDK stack around it is written in.</td></tr>
     <tr><td><strong>SAM CLI</strong> (<code>sam local invoke</code>)</td><td>The Lambda execution environment (real Docker container matching the runtime)</td><td>Running the actual handler locally, e.g. against LocalStack or a local DynamoDB endpoint</td></tr>
     <tr><td><strong>LocalStack</strong> + <code>cdklocal</code></td><td>The AWS control plane itself &mdash; DynamoDB, Lambda, S3, IAM run in a local container</td><td>&ldquo;Deploying&rdquo; the whole CDK stack end-to-end on your laptop, free, no real account</td></tr>
   </tbody>
@@ -390,7 +402,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
 <table>
   <thead><tr><th></th><th class="cdk">AWS CDK</th><th>Terraform</th><th>CloudFormation</th></tr></thead>
   <tbody>
-    <tr><td>Authoring language</td><td>Python, TS, Java, Go, C#</td><td>HCL</td><td>JSON / YAML</td></tr>
+    <tr><td>Authoring language</td><td>TypeScript, Python, Java, Go, C#</td><td>HCL</td><td>JSON / YAML</td></tr>
     <tr><td>Logic (loops, conditionals)</td><td>The language itself</td><td><code>count</code>, <code>for_each</code>, functions</td><td>Very limited</td></tr>
     <tr><td>State</td><td>CloudFormation manages it</td><td>You manage a state file (Lesson 9)</td><td>AWS manages it</td></tr>
     <tr><td>Multi-cloud</td><td>AWS only</td><td>Any provider</td><td>AWS only</td></tr>
@@ -490,7 +502,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
 
 <div class="callout finance">
   <strong>Lesson takeaway</strong>
-  The CDK lets you author AWS infrastructure in Python or TypeScript: an <strong>App</strong> holds <strong>Stacks</strong> (one CloudFormation stack each), which hold <strong>Constructs</strong> (L2 curated ones by default). <code>cdk synth</code> compiles code to a template; <code>cdk diff</code> shows the change (stop on replacements); <code>cdk deploy</code> applies it via CloudFormation; <code>cdk bootstrap</code> is a one-time per account/region setup. The payoff over Terraform is language-native logic, autocompletion, testable templates, automatic Lambda/Docker asset bundling, and <code>.grant_*()</code> methods that write least-privilege IAM for you. In finance: RETAIN removal policies, reviewed diffs as a deploy gate, and cdk-nag rules enforced at build time.
+  The CDK lets you author AWS infrastructure in TypeScript or Python: an <strong>App</strong> holds <strong>Stacks</strong> (one CloudFormation stack each), which hold <strong>Constructs</strong> (L2 curated ones by default). <code>cdk synth</code> compiles code to a template; <code>cdk diff</code> shows the change (stop on replacements); <code>cdk deploy</code> applies it via CloudFormation; <code>cdk bootstrap</code> is a one-time per account/region setup. The payoff over Terraform is language-native logic, autocompletion, testable templates, automatic Lambda/Docker asset bundling, and <code>.grant_*()</code> methods that write least-privilege IAM for you. In finance: RETAIN removal policies, reviewed diffs as a deploy gate, and cdk-nag rules enforced at build time.
 </div>
 
 <div class="lesson-nav">
