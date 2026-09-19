@@ -87,6 +87,11 @@
 
 <p><a href="0010-sqs-lambda.html">Lesson 10</a> covered the SQS &rarr; Lambda pattern for async jobs, and <a href="0016-lambda-bedrock-agent-tools.html">Lesson 16</a> used Lambda as a Bedrock agent tool. This lesson steps back to Lambda itself: the execution model, how to run and debug it entirely offline, and how to organize many functions across QA / UAT / prod without hand-editing config in each place.</p>
 
+<div class="callout info">
+  <strong>Language note</strong>
+  Examples here use Node.js/TypeScript for both the Lambda handler and the CDK stack that deploys it, matching <a href="0018-aws-cdk.html">Lesson 18</a>'s TypeScript examples. Everything &mdash; the execution model, the testing ladder, the multi-environment pattern &mdash; applies identically to a Python handler (as used in Lessons 10 and 16); only the specific tool names differ (<code>pytest</code>+<code>moto</code> instead of <strong>Jest</strong>+<code>aws-sdk-client-mock</code>, <code>debugpy</code> instead of Node's built-in inspector).
+</div>
+
 <h2>Lambda architecture &mdash; what actually runs</h2>
 
 <p>A Lambda function is not a server you can SSH into. It's <strong>code + configuration</strong> that AWS runs inside a managed, sandboxed execution environment on demand.</p>
@@ -109,13 +114,13 @@ Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
 <table>
   <thead><tr><th>Piece</th><th>What it is</th></tr></thead>
   <tbody>
-    <tr><td><strong>Handler</strong></td><td>The entry point &mdash; <code>module.function_name</code>, e.g. <code>handler.lambda_handler</code>. Everything at module scope (DB clients, boto3 clients) runs once per cold start and is reused across warm invocations &mdash; that's why you create clients outside the handler, not inside it.</td></tr>
+    <tr><td><strong>Handler</strong></td><td>The entry point &mdash; <code>file.export</code>, e.g. <code>index.handler</code>. Everything at module scope (DB clients, AWS SDK clients) runs once per cold start and is reused across warm invocations &mdash; that's why you create clients outside the handler, not inside it.</td></tr>
     <tr><td><strong>Runtime</strong></td><td>The managed language runtime (Python 3.13, Node 20, Java 21&hellip;) <em>or</em> a container image you build yourself with the Lambda base image / Runtime Interface Client baked in.</td></tr>
     <tr><td><strong>Execution role</strong></td><td>The IAM role the function assumes for every invocation. Least privilege applies exactly as it does for ECS (Lesson 3) &mdash; scope it to the specific table/queue/bucket ARNs it touches.</td></tr>
     <tr><td><strong>Memory (128 MB&ndash;10,240 MB)</strong></td><td>CPU scales linearly with memory &mdash; there is no separate CPU dial. Under-provisioning memory is often the actual cause of a "slow" Lambda.</td></tr>
     <tr><td><strong>Timeout (max 15 min)</strong></td><td>Hard ceiling per invocation. A function stuck waiting on a downstream call is billed the whole time and then killed.</td></tr>
     <tr><td><strong>Concurrency</strong></td><td>How many invocations run in parallel. Unset = scales to the account-wide unreserved pool. <strong>Reserved concurrency</strong> caps (and guarantees) capacity per function; <strong>provisioned concurrency</strong> keeps N environments pre-warmed to eliminate cold starts.</td></tr>
-    <tr><td><strong>Layers</strong></td><td>Versioned zip bundles (shared libraries, a common boto3 pin) attached to multiple functions instead of duplicated in every deployment package.</td></tr>
+    <tr><td><strong>Layers</strong></td><td>Versioned zip bundles (shared libraries, a common AWS SDK version pin) attached to multiple functions instead of duplicated in every deployment package.</td></tr>
     <tr><td><strong>VPC attachment</strong></td><td>Optional. Needed only if the function must reach something with no public endpoint (RDS in a private subnet). Adds an ENI attach step to cold starts and requires a NAT for any internet-bound call (e.g. Bedrock, SES) from inside the VPC.</td></tr>
     <tr><td><strong>Alias / Version</strong></td><td>A <em>version</em> is an immutable, numbered snapshot of code+config. An <em>alias</em> (e.g. <code>live</code>, <code>qa</code>) is a named, mutable pointer to a version &mdash; and can split traffic between two versions for canary rollout.</td></tr>
   </tbody>
@@ -132,7 +137,7 @@ Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
   <thead><tr><th></th><th>Zip package</th><th>Container image</th></tr></thead>
   <tbody>
     <tr><td>Size limit</td><td>250 MB unzipped (with layers)</td><td>10 GB</td></tr>
-    <tr><td>Build</td><td><code>pip install -t .</code>, zip it</td><td>Docker image <code>FROM public.ecr.aws/lambda/python:3.13</code></td></tr>
+    <tr><td>Build</td><td><code>npm install</code>, <code>esbuild</code>/<code>tsc</code> bundle, zip it</td><td>Docker image <code>FROM public.ecr.aws/lambda/nodejs:20</code></td></tr>
     <tr><td>Local run</td><td><code>sam local invoke</code></td><td><code>docker run</code> + Lambda Runtime Interface Emulator (RIE)</td></tr>
     <tr><td>Use when</td><td>Small, pure-Python/Node dependencies</td><td>Large ML libraries (torch, pandas+numpy stacks), native binaries, or you already have a Docker-based build pipeline</td></tr>
   </tbody>
@@ -145,8 +150,8 @@ Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
 <table>
   <thead><tr><th>Layer</th><th>What it mocks</th><th>Needs Docker?</th><th>Needs AWS creds?</th></tr></thead>
   <tbody>
-    <tr><td>1. Call the handler directly</td><td>Nothing &mdash; it's just a Python function call</td><td>No</td><td>No</td></tr>
-    <tr><td>2. <code>pytest</code> + <code>moto</code></td><td>The boto3 API surface (DynamoDB, S3, SES&hellip;)</td><td>No</td><td>No</td></tr>
+    <tr><td>1. Call the handler directly</td><td>Nothing &mdash; it's just a function call</td><td>No</td><td>No</td></tr>
+    <tr><td>2. <code>jest</code> + <code>aws-sdk-client-mock</code></td><td>The AWS SDK v3 client surface (DynamoDB, S3, SES&hellip;)</td><td>No</td><td>No</td></tr>
     <tr><td>3. <code>sam local invoke</code></td><td>The Lambda execution environment (real runtime container)</td><td>Yes</td><td>No (unless the handler calls real AWS)</td></tr>
     <tr><td>4. <code>sam local start-api</code></td><td>API Gateway + Lambda together, on <code>localhost</code></td><td>Yes</td><td>No</td></tr>
     <tr><td>5. LocalStack</td><td>The Lambda service, plus whatever other AWS APIs your handler calls</td><td>Yes</td><td>No (fake credentials accepted)</td></tr>
@@ -155,27 +160,41 @@ Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
 
 <h3>Layer 1 &amp; 2 &mdash; no Docker, no AWS, milliseconds</h3>
 
-<pre><span class="file-label">tests/test_handler.py</span>
-<span class="kw">import</span> os, boto3, pytest
-<span class="kw">from</span> moto <span class="kw">import</span> mock_aws
-<span class="kw">from</span> handler <span class="kw">import</span> lambda_handler
+<pre><span class="file-label">index.ts — the handler</span>
+<span class="kw">import</span> { DynamoDBClient } <span class="kw">from</span> <span class="str">'@aws-sdk/client-dynamodb'</span>;
+<span class="kw">import</span> { DynamoDBDocumentClient, GetCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/lib-dynamodb'</span>;
 
-<span class="fn">@mock_aws</span>
-<span class="kw">def</span> <span class="fn">test_handler_reads_customer_profile</span>():
-    os.environ[<span class="str">"TABLE_NAME"</span>] = <span class="str">"Customers"</span>
-    ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
-    ddb.<span class="fn">create_table</span>(
-        TableName=<span class="str">"Customers"</span>,
-        KeySchema=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>}],
-        AttributeDefinitions=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>}],
-        BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,
-    ).<span class="fn">put_item</span>(Item={<span class="str">"pk"</span>: <span class="str">"CUST#1"</span>, <span class="str">"name"</span>: <span class="str">"Ada"</span>})
+<span class="cmt">// module scope — created once per cold start, reused across warm invocations</span>
+<span class="kw">const</span> ddb = DynamoDBDocumentClient.<span class="fn">from</span>(<span class="kw">new</span> DynamoDBClient({}));
 
-    <span class="cmt"># No SAM, no Docker, no network — this is just calling a Python function</span>
-    result = <span class="fn">lambda_handler</span>({<span class="str">"customer_id"</span>: <span class="str">"1"</span>}, <span class="kw">None</span>)
-    <span class="kw">assert</span> result[<span class="str">"name"</span>] == <span class="str">"Ada"</span></pre>
+<span class="kw">export const</span> <span class="fn">handler</span> = <span class="kw">async</span> (event: { customer_id: <span class="cls">string</span> }) => {
+  <span class="kw">const</span> { Item } = <span class="kw">await</span> ddb.<span class="fn">send</span>(<span class="kw">new</span> GetCommand({
+    TableName: process.env.TABLE_NAME,
+    Key: { pk: <span class="str">`CUST#${event.customer_id}`</span> },
+  }));
+  <span class="kw">return</span> Item;
+};</pre>
 
-<p>Set a breakpoint in <code>handler.py</code> and run this test under your normal debugger (VS Code / PyCharm &ldquo;Debug Test&rdquo;) &mdash; this covers the majority of Lambda debugging, since most bugs are in your business logic, not in AWS's runtime plumbing.</p>
+<pre><span class="file-label">index.test.ts</span>
+<span class="kw">import</span> { mockClient } <span class="kw">from</span> <span class="str">'aws-sdk-client-mock'</span>;
+<span class="kw">import</span> { DynamoDBDocumentClient, GetCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/lib-dynamodb'</span>;
+<span class="kw">import</span> { handler } <span class="kw">from</span> <span class="str">'./index'</span>;
+
+<span class="kw">const</span> ddbMock = <span class="fn">mockClient</span>(DynamoDBDocumentClient);
+
+<span class="fn">beforeEach</span>(() => ddbMock.<span class="fn">reset</span>());
+
+test(<span class="str">'returns the profile for a known customer'</span>, <span class="kw">async</span> () => {
+  ddbMock.<span class="fn">on</span>(GetCommand, { TableName: <span class="str">'Customers'</span>, Key: { pk: <span class="str">'CUST#1'</span> } })
+    .<span class="fn">resolves</span>({ Item: { pk: <span class="str">'CUST#1'</span>, name: <span class="str">'Ada'</span> } });
+
+  <span class="cmt">// No SAM, no Docker, no network — this is just calling a function</span>
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">handler</span>({ customer_id: <span class="str">'1'</span> });
+
+  <span class="fn">expect</span>(result?.name).<span class="fn">toBe</span>(<span class="str">'Ada'</span>);
+});</pre>
+
+<p>Set a breakpoint in <code>index.ts</code> and run this test under your normal debugger (VS Code's built-in &ldquo;Debug Jest Tests&rdquo; / the Jest extension) &mdash; this covers the majority of Lambda debugging, since most bugs are in your business logic, not in AWS's runtime plumbing.</p>
 
 <h3>Layer 3 &amp; 4 &mdash; run the real handler in a real container, attach a debugger</h3>
 
@@ -194,9 +213,9 @@ sam local start-api -t template.yaml --env-vars env.json
 <pre><span class="file-label">terminal — attach a real debugger (step through code)</span>
 sam local invoke GetCustomerProfileFunction \
   -t template.yaml -e events/api_gateway_get.json \
-  -d 5678 --debugger-path ./debugpy --debug-args="-m debugpy --listen 0.0.0.0:5678 --wait-for-client"
-<span class="cmt"># then attach VS Code's Python debugger to localhost:5678 — breakpoints work exactly</span>
-<span class="cmt"># as if the code were running natively, but it's actually inside the Lambda container</span></pre>
+  -d 5858    <span class="cmt"># SAM starts the Node runtime with --inspect-brk=5858 automatically</span>
+<span class="cmt"># then attach VS Code's Node debugger (or chrome://inspect) to localhost:5858 — breakpoints</span>
+<span class="cmt"># work exactly as if the code were running natively, but it's actually inside the Lambda container</span></pre>
 
 <div class="callout info">
   <strong>Container images: use the Runtime Interface Emulator directly</strong>
@@ -205,7 +224,7 @@ sam local invoke GetCustomerProfileFunction \
 
 <h3>Layer 5 &mdash; LocalStack, when the handler talks to several AWS services</h3>
 
-<p>If <code>GetCustomerProfile</code> reads DynamoDB, calls Bedrock, and writes to S3, wiring up <code>moto</code> for all three or hand-crafting every SAM env var gets tedious. LocalStack runs an AWS-API-compatible server in Docker and lets you point the real AWS SDK at it.</p>
+<p>If <code>GetCustomerProfile</code> reads DynamoDB, calls Bedrock, and writes to S3, wiring up <code>aws-sdk-client-mock</code> for all three or hand-crafting every SAM env var gets tedious. LocalStack runs an AWS-API-compatible server in Docker and lets you point the real AWS SDK at it.</p>
 
 <pre><span class="file-label">terminal</span>
 docker run -d --name localstack -p 4566:4566 localstack/localstack
@@ -220,7 +239,7 @@ awslocal lambda invoke --function-name GetCustomerProfile out.json &amp;&amp; ca
 
 <div class="callout warn">
   <strong>None of this replaces a real staging deploy</strong>
-  Layers 1&ndash;5 all catch wiring and logic bugs cheaply. They do not prove IAM permissions are correct (moto and LocalStack don't enforce policies the way real AWS does), nor do they reproduce real cold-start latency, VPC networking, or account-level quotas. A real deploy to a QA/staging account (next section) is still the last gate before prod.
+  Layers 1&ndash;5 all catch wiring and logic bugs cheaply. They do not prove IAM permissions are correct (<code>aws-sdk-client-mock</code> and LocalStack don't enforce policies the way real AWS does), nor do they reproduce real cold-start latency, VPC networking, or account-level quotas. A real deploy to a QA/staging account (next section) is still the last gate before prod.
 </div>
 
 <h2>Grouping Lambdas and running them per environment (QA, UAT, prod)</h2>
@@ -231,60 +250,67 @@ awslocal lambda invoke --function-name GetCustomerProfile out.json &amp;&amp; ca
 
 <p>QA, UAT, and prod are three different AWS accounts, tied together by AWS Organizations. Same CDK app or SAM template, same function code, deployed into a different account+region per environment via CI/CD.</p>
 
-<pre><span class="file-label">app.py — CDK, one stack class, three environments</span>
-<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
-<span class="kw">from</span> finapp_infra.lambda_group_stack <span class="kw">import</span> LambdaGroupStack
+<pre><span class="file-label">bin/finapp-infra.ts — CDK, one stack class, three environments</span>
+<span class="kw">import</span> * <span class="kw">as</span> cdk <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> { LambdaGroupStack } <span class="kw">from</span> <span class="str">'../lib/lambda-group-stack'</span>;
 
-app = cdk.<span class="cls">App</span>()
-env_name = app.<span class="fn">node</span>.<span class="fn">try_get_context</span>(<span class="str">"env"</span>) <span class="kw">or</span> <span class="str">"qa"</span>   <span class="cmt"># cdk deploy -c env=uat</span>
+<span class="kw">const</span> app = <span class="kw">new</span> cdk.<span class="cls">App</span>();
+<span class="kw">const</span> envName = (app.<span class="fn">node</span>.<span class="fn">tryGetContext</span>(<span class="str">'env'</span>) <span class="kw">as</span> <span class="cls">string</span>) ?? <span class="str">'qa'</span>;   <span class="cmt">// cdk deploy -c env=uat</span>
 
-accounts = {
-    <span class="str">"qa"</span>:   <span class="str">"111111111111"</span>,
-    <span class="str">"uat"</span>:  <span class="str">"222222222222"</span>,
-    <span class="str">"prod"</span>: <span class="str">"333333333333"</span>,
-}
+<span class="kw">const</span> accounts: <span class="cls">Record</span>&lt;<span class="cls">string</span>, <span class="cls">string</span>&gt; = {
+  qa:   <span class="str">'111111111111'</span>,
+  uat:  <span class="str">'222222222222'</span>,
+  prod: <span class="str">'333333333333'</span>,
+};
 
-<span class="cls">LambdaGroupStack</span>(app, <span class="str">f"AgentTools-{env_name}"</span>,
-    env_name=env_name,
-    env=cdk.<span class="cls">Environment</span>(account=accounts[env_name], region=<span class="str">"us-east-1"</span>))
+<span class="kw">new</span> <span class="cls">LambdaGroupStack</span>(app, <span class="str">`AgentTools-${envName}`</span>, envName, {
+  env: { account: accounts[envName], region: <span class="str">'us-east-1'</span> },
+});
 
-app.<span class="fn">synth</span>()</pre>
+app.<span class="fn">synth</span>();</pre>
 
-<pre><span class="file-label">finapp_infra/lambda_group_stack.py — several related functions, one stack</span>
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> Stack, Duration
-<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_lambda <span class="kw">as</span> _lambda
-<span class="kw">from</span> constructs <span class="kw">import</span> Construct
+<pre><span class="file-label">lib/lambda-group-stack.ts — several related functions, one stack</span>
+<span class="kw">import</span> { Stack, StackProps, Duration, Tags } <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> lambda <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-lambda'</span>;
+<span class="kw">import</span> { Construct } <span class="kw">from</span> <span class="str">'constructs'</span>;
 
-<span class="kw">class</span> <span class="cls">LambdaGroupStack</span>(Stack):
-    <span class="kw">def</span> <span class="fn">__init__</span>(self, scope: Construct, cid: <span class="cls">str</span>, env_name: <span class="cls">str</span>, **kwargs):
-        <span class="fn">super</span>().<span class="fn">__init__</span>(scope, cid, **kwargs)
+<span class="kw">const</span> CONFIG: <span class="cls">Record</span>&lt;<span class="cls">string</span>, { memory: <span class="cls">number</span>; logRetentionDays: <span class="cls">number</span>; reservedConcurrency: <span class="cls">number</span> }&gt; = {
+  qa:   { memory: <span class="num">256</span>,  logRetentionDays: <span class="num">7</span>,  reservedConcurrency: <span class="num">5</span> },
+  uat:  { memory: <span class="num">512</span>,  logRetentionDays: <span class="num">30</span>, reservedConcurrency: <span class="num">10</span> },
+  prod: { memory: <span class="num">1024</span>, logRetentionDays: <span class="num">90</span>, reservedConcurrency: <span class="num">50</span> },
+};
 
-        <span class="cmt"># Config that differs per environment lives in one place, not scattered across functions</span>
-        config = {
-            <span class="str">"qa"</span>:   {<span class="str">"memory"</span>: <span class="num">256</span>,  <span class="str">"log_retention_days"</span>: <span class="num">7</span>,  <span class="str">"reserved_concurrency"</span>: <span class="num">5</span>},
-            <span class="str">"uat"</span>:  {<span class="str">"memory"</span>: <span class="num">512</span>,  <span class="str">"log_retention_days"</span>: <span class="num">30</span>, <span class="str">"reserved_concurrency"</span>: <span class="num">10</span>},
-            <span class="str">"prod"</span>: {<span class="str">"memory"</span>: <span class="num">1024</span>, <span class="str">"log_retention_days"</span>: <span class="num">90</span>, <span class="str">"reserved_concurrency"</span>: <span class="num">50</span>},
-        }[env_name]
+<span class="kw">export class</span> <span class="cls">LambdaGroupStack</span> <span class="kw">extends</span> Stack {
+  <span class="fn">constructor</span>(scope: Construct, id: <span class="cls">string</span>, envName: <span class="cls">string</span>, props?: StackProps) {
+    <span class="fn">super</span>(scope, id, props);
 
-        <span class="cmt"># Group: every tool Lambda for the agent shares naming, tags, and defaults</span>
-        <span class="kw">for</span> name, handler_path <span class="kw">in</span> [
-            (<span class="str">"GetCustomerProfile"</span>, <span class="str">"lambda/get_customer_profile"</span>),
-            (<span class="str">"GetAccountBalance"</span>,  <span class="str">"lambda/get_account_balance"</span>),
-            (<span class="str">"LookupTradeHistory"</span>, <span class="str">"lambda/lookup_trade_history"</span>),
-        ]:
-            fn = _lambda.<span class="cls">Function</span>(self, name,
-                function_name=<span class="str">f"{name}-{env_name}"</span>,
-                runtime=_lambda.Runtime.PYTHON_3_13,
-                handler=<span class="str">"handler.lambda_handler"</span>,
-                code=_lambda.Code.<span class="fn">from_asset</span>(handler_path),
-                memory_size=config[<span class="str">"memory"</span>],
-                timeout=Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
-                reserved_concurrent_executions=config[<span class="str">"reserved_concurrency"</span>],
-                environment={<span class="str">"ENV"</span>: env_name},
-            )
-            <span class="cmt"># tag every function in the group the same way — cost allocation, ownership</span>
-            cdk.Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">"team"</span>, <span class="str">"agent-tools"</span>)
-            cdk.Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">"environment"</span>, env_name)</pre>
+    <span class="cmt">// Config that differs per environment lives in one place, not scattered across functions</span>
+    <span class="kw">const</span> config = CONFIG[envName];
+
+    <span class="cmt">// Group: every tool Lambda for the agent shares naming, tags, and defaults</span>
+    <span class="kw">const</span> functions: [<span class="cls">string</span>, <span class="cls">string</span>][] = [
+      [<span class="str">'GetCustomerProfile'</span>, <span class="str">'lambda/get-customer-profile'</span>],
+      [<span class="str">'GetAccountBalance'</span>,  <span class="str">'lambda/get-account-balance'</span>],
+      [<span class="str">'LookupTradeHistory'</span>, <span class="str">'lambda/lookup-trade-history'</span>],
+    ];
+
+    <span class="kw">for</span> (<span class="kw">const</span> [name, handlerPath] <span class="kw">of</span> functions) {
+      <span class="kw">const</span> fn = <span class="kw">new</span> lambda.<span class="cls">Function</span>(<span class="kw">this</span>, name, {
+        functionName: <span class="str">`${name}-${envName}`</span>,
+        runtime: lambda.Runtime.NODEJS_20_X,
+        handler: <span class="str">'index.handler'</span>,
+        code: lambda.Code.<span class="fn">fromAsset</span>(handlerPath),
+        memorySize: config.memory,
+        timeout: Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
+        reservedConcurrentExecutions: config.reservedConcurrency,
+        environment: { ENV: envName },
+      });
+      <span class="cmt">// tag every function in the group the same way — cost allocation, ownership</span>
+      Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">'team'</span>, <span class="str">'agent-tools'</span>);
+      Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">'environment'</span>, envName);
+    }
+  }
+}</pre>
 
 <div class="flow">
   <div class="ftitle">Promotion pipeline</div>
@@ -334,7 +360,7 @@ git push to <code>main</code>
   <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on Lambda architecture, local testing, and multi-environment deploys.</p>
 
   <div class="question" id="q1">
-    <p>1. Why do Lambda best practices say to create the boto3 client at module scope, outside the handler function?</p>
+    <p>1. Why do Lambda best practices say to create the AWS SDK client at module scope, outside the handler function?</p>
     <div class="options">
       <label><input type="radio" name="q1" value="a"> It's required syntax — Lambda won't import the module otherwise</label>
       <label><input type="radio" name="q1" value="b"> Module-scope code runs once per cold start and is reused across warm invocations of the same execution environment, avoiding reconnecting on every call</label>
@@ -350,10 +376,10 @@ git push to <code>main</code>
     <div class="options">
       <label><input type="radio" name="q2" value="a"> LocalStack</label>
       <label><input type="radio" name="q2" value="b"> sam local invoke</label>
-      <label><input type="radio" name="q2" value="c"> Calling lambda_handler(event, None) directly in a pytest test, with moto mocking any AWS calls</label>
+      <label><input type="radio" name="q2" value="c"> Calling handler(event) directly in a Jest test, with aws-sdk-client-mock mocking any AWS calls</label>
       <label><input type="radio" name="q2" value="d"> Deploying to a QA account and checking CloudWatch Logs</label>
     </div>
-    <button class="check-btn" onclick="check('q2','c','Correct. The handler is just a Python function — calling it directly under your normal debugger, with moto faking any boto3 calls, is the fastest loop and needs no Docker, network, or AWS account. Reach for sam local invoke or LocalStack only when you need to reproduce the actual Lambda container or multiple real AWS service interactions.','Not quite. LocalStack and sam local invoke both need Docker and add real latency; a QA deploy is the slowest option of all. For a millisecond debug loop with breakpoints, call the handler function directly in a unit test.')">Check</button>
+    <button class="check-btn" onclick="check('q2','c','Correct. The handler is just a function — calling it directly under your normal debugger, with aws-sdk-client-mock faking any AWS SDK calls, is the fastest loop and needs no Docker, network, or AWS account. Reach for sam local invoke or LocalStack only when you need to reproduce the actual Lambda container or multiple real AWS service interactions.','Not quite. LocalStack and sam local invoke both need Docker and add real latency; a QA deploy is the slowest option of all. For a millisecond debug loop with breakpoints, call the handler function directly in a unit test.')">Check</button>
     <div class="feedback" id="q2-feedback"></div>
   </div>
 
@@ -384,7 +410,7 @@ git push to <code>main</code>
 
 <div class="callout finance">
   <strong>Lesson takeaway</strong>
-  A Lambda invocation is: event in &rarr; a managed execution environment (cold or warm) runs your handler under an IAM execution role &rarr; response out, logged to CloudWatch. You can test almost all of it without AWS: call the handler directly with <code>moto</code> for the fastest loop, use <code>sam local invoke</code> / the Runtime Interface Emulator to run the real container with a real debugger attached, and reach for LocalStack when several AWS services are involved &mdash; but a real staging deploy is still the final gate, since none of these enforce IAM the way real AWS does. To run related Lambdas across QA/UAT/prod, parameterize one stack definition by environment (memory, concurrency, log retention, account) and promote the same built artifact through each stage via CI/CD; prefer separate AWS accounts with SCPs over same-account naming/aliases for the hard isolation a financial app needs.
+  A Lambda invocation is: event in &rarr; a managed execution environment (cold or warm) runs your handler under an IAM execution role &rarr; response out, logged to CloudWatch. You can test almost all of it without AWS: call the handler directly with <code>aws-sdk-client-mock</code> for the fastest loop, use <code>sam local invoke</code> / the Runtime Interface Emulator to run the real container with a real debugger attached, and reach for LocalStack when several AWS services are involved &mdash; but a real staging deploy is still the final gate, since none of these enforce IAM the way real AWS does. To run related Lambdas across QA/UAT/prod, parameterize one stack definition by environment (memory, concurrency, log retention, account) and promote the same built artifact through each stage via CI/CD; prefer separate AWS accounts with SCPs over same-account naming/aliases for the hard isolation a financial app needs.
 </div>
 
 <div class="lesson-nav">
@@ -404,7 +430,8 @@ git push to <code>main</code>
   <a href="https://docs.aws.amazon.com/lambda/latest/dg/images-test.html" target="_blank">Testing Lambda container images locally (RIE)</a> &middot;
   <a href="https://docs.localstack.cloud/user-guide/aws/lambda/" target="_blank">LocalStack Lambda</a> &middot;
   <a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-aliases.html" target="_blank">Lambda aliases &amp; versions</a> &middot;
-  <a href="https://github.com/getmoto/moto" target="_blank">moto</a>
+  <a href="https://github.com/m-radzikowski/aws-sdk-client-mock" target="_blank">aws-sdk-client-mock</a> &middot;
+  <a href="https://github.com/getmoto/moto" target="_blank">moto (Python equivalent)</a>
 </footer>
 
 </article>
