@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 21 — Lambda: Architecture, Local Debugging &amp; Multi-Environment Deploys</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --purple: #7d3c98; --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; } .dim { color: #888; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--aws-orange); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--aws-orange); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 21 &middot; Compute</div>
+  <h1>Lambda: Architecture, Local Debugging &amp; Multi-Environment Deploys</h1>
+  <div class="subtitle">What actually runs when a Lambda fires, how to step through it on your laptop without touching AWS, and how the same function ships to QA, UAT, and prod</div>
+</header>
+
+<p><a href="0010-sqs-lambda.html">Lesson 10</a> covered the SQS &rarr; Lambda pattern for async jobs, and <a href="0016-lambda-bedrock-agent-tools.html">Lesson 16</a> used Lambda as a Bedrock agent tool. This lesson steps back to Lambda itself: the execution model, how to run and debug it entirely offline, and how to organize many functions across QA / UAT / prod without hand-editing config in each place.</p>
+
+<h2>Lambda architecture &mdash; what actually runs</h2>
+
+<p>A Lambda function is not a server you can SSH into. It's <strong>code + configuration</strong> that AWS runs inside a managed, sandboxed execution environment on demand.</p>
+
+<div class="flow">
+  <div class="ftitle">Anatomy of one invocation</div>
+Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
+  <span class="arrow">&rarr;</span> Lambda service receives the event
+  <span class="arrow">&rarr;</span> <strong>Is there a warm execution environment?</strong>
+       Yes <span class="arrow">&rarr;</span> reuse it (fast &mdash; a &ldquo;warm start&rdquo;)
+       No  <span class="arrow">&rarr;</span> provision one: download code, start the runtime, run init code outside your handler (a &ldquo;cold start&rdquo;)
+  <span class="arrow">&rarr;</span> Runtime calls your <strong>handler function</strong> with (event, context)
+  <span class="arrow">&rarr;</span> Handler runs, using the attached <strong>execution role</strong> (IAM) for any AWS calls
+  <span class="arrow">&rarr;</span> Return value goes back to the caller (or, for async invokes, is discarded/retried)
+  <span class="arrow">&rarr;</span> Logs stream to CloudWatch Logs; the environment is frozen and may be reused for the next event
+</div>
+
+<h3>The pieces you configure</h3>
+
+<table>
+  <thead><tr><th>Piece</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Handler</strong></td><td>The entry point &mdash; <code>module.function_name</code>, e.g. <code>handler.lambda_handler</code>. Everything at module scope (DB clients, boto3 clients) runs once per cold start and is reused across warm invocations &mdash; that's why you create clients outside the handler, not inside it.</td></tr>
+    <tr><td><strong>Runtime</strong></td><td>The managed language runtime (Python 3.13, Node 20, Java 21&hellip;) <em>or</em> a container image you build yourself with the Lambda base image / Runtime Interface Client baked in.</td></tr>
+    <tr><td><strong>Execution role</strong></td><td>The IAM role the function assumes for every invocation. Least privilege applies exactly as it does for ECS (Lesson 3) &mdash; scope it to the specific table/queue/bucket ARNs it touches.</td></tr>
+    <tr><td><strong>Memory (128 MB&ndash;10,240 MB)</strong></td><td>CPU scales linearly with memory &mdash; there is no separate CPU dial. Under-provisioning memory is often the actual cause of a "slow" Lambda.</td></tr>
+    <tr><td><strong>Timeout (max 15 min)</strong></td><td>Hard ceiling per invocation. A function stuck waiting on a downstream call is billed the whole time and then killed.</td></tr>
+    <tr><td><strong>Concurrency</strong></td><td>How many invocations run in parallel. Unset = scales to the account-wide unreserved pool. <strong>Reserved concurrency</strong> caps (and guarantees) capacity per function; <strong>provisioned concurrency</strong> keeps N environments pre-warmed to eliminate cold starts.</td></tr>
+    <tr><td><strong>Layers</strong></td><td>Versioned zip bundles (shared libraries, a common boto3 pin) attached to multiple functions instead of duplicated in every deployment package.</td></tr>
+    <tr><td><strong>VPC attachment</strong></td><td>Optional. Needed only if the function must reach something with no public endpoint (RDS in a private subnet). Adds an ENI attach step to cold starts and requires a NAT for any internet-bound call (e.g. Bedrock, SES) from inside the VPC.</td></tr>
+    <tr><td><strong>Alias / Version</strong></td><td>A <em>version</em> is an immutable, numbered snapshot of code+config. An <em>alias</em> (e.g. <code>live</code>, <code>qa</code>) is a named, mutable pointer to a version &mdash; and can split traffic between two versions for canary rollout.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  Lambda &asymp; <span class="azure">Azure Functions</span> (Consumption or Premium plan). Execution role &asymp; the function's <span class="azure">managed identity</span>. Layers &asymp; <span class="azure">Function App shared dependencies / extension bundles</span>. Alias+Version traffic-shifting &asymp; <span class="azure">deployment slots with traffic routing</span>. Provisioned concurrency &asymp; <span class="azure">Premium plan's "always ready" instances</span>.
+</div>
+
+<h3>Two ways to package code</h3>
+
+<table>
+  <thead><tr><th></th><th>Zip package</th><th>Container image</th></tr></thead>
+  <tbody>
+    <tr><td>Size limit</td><td>250 MB unzipped (with layers)</td><td>10 GB</td></tr>
+    <tr><td>Build</td><td><code>pip install -t .</code>, zip it</td><td>Docker image <code>FROM public.ecr.aws/lambda/python:3.13</code></td></tr>
+    <tr><td>Local run</td><td><code>sam local invoke</code></td><td><code>docker run</code> + Lambda Runtime Interface Emulator (RIE)</td></tr>
+    <tr><td>Use when</td><td>Small, pure-Python/Node dependencies</td><td>Large ML libraries (torch, pandas+numpy stacks), native binaries, or you already have a Docker-based build pipeline</td></tr>
+  </tbody>
+</table>
+
+<h2>Can I test Lambda without AWS? &mdash; yes, in layers</h2>
+
+<p>Same idea as the CDK lesson's local-mock ladder (<a href="0018-aws-cdk.html">Lesson 18</a>): start with the cheapest, fastest layer and only reach for the next one when you need it.</p>
+
+<table>
+  <thead><tr><th>Layer</th><th>What it mocks</th><th>Needs Docker?</th><th>Needs AWS creds?</th></tr></thead>
+  <tbody>
+    <tr><td>1. Call the handler directly</td><td>Nothing &mdash; it's just a Python function call</td><td>No</td><td>No</td></tr>
+    <tr><td>2. <code>pytest</code> + <code>moto</code></td><td>The boto3 API surface (DynamoDB, S3, SES&hellip;)</td><td>No</td><td>No</td></tr>
+    <tr><td>3. <code>sam local invoke</code></td><td>The Lambda execution environment (real runtime container)</td><td>Yes</td><td>No (unless the handler calls real AWS)</td></tr>
+    <tr><td>4. <code>sam local start-api</code></td><td>API Gateway + Lambda together, on <code>localhost</code></td><td>Yes</td><td>No</td></tr>
+    <tr><td>5. LocalStack</td><td>The Lambda service, plus whatever other AWS APIs your handler calls</td><td>Yes</td><td>No (fake credentials accepted)</td></tr>
+  </tbody>
+</table>
+
+<h3>Layer 1 &amp; 2 &mdash; no Docker, no AWS, milliseconds</h3>
+
+<pre><span class="file-label">tests/test_handler.py</span>
+<span class="kw">import</span> os, boto3, pytest
+<span class="kw">from</span> moto <span class="kw">import</span> mock_aws
+<span class="kw">from</span> handler <span class="kw">import</span> lambda_handler
+
+<span class="fn">@mock_aws</span>
+<span class="kw">def</span> <span class="fn">test_handler_reads_customer_profile</span>():
+    os.environ[<span class="str">"TABLE_NAME"</span>] = <span class="str">"Customers"</span>
+    ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
+    ddb.<span class="fn">create_table</span>(
+        TableName=<span class="str">"Customers"</span>,
+        KeySchema=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>}],
+        AttributeDefinitions=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>}],
+        BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,
+    ).<span class="fn">put_item</span>(Item={<span class="str">"pk"</span>: <span class="str">"CUST#1"</span>, <span class="str">"name"</span>: <span class="str">"Ada"</span>})
+
+    <span class="cmt"># No SAM, no Docker, no network — this is just calling a Python function</span>
+    result = <span class="fn">lambda_handler</span>({<span class="str">"customer_id"</span>: <span class="str">"1"</span>}, <span class="kw">None</span>)
+    <span class="kw">assert</span> result[<span class="str">"name"</span>] == <span class="str">"Ada"</span></pre>
+
+<p>Set a breakpoint in <code>handler.py</code> and run this test under your normal debugger (VS Code / PyCharm &ldquo;Debug Test&rdquo;) &mdash; this covers the majority of Lambda debugging, since most bugs are in your business logic, not in AWS's runtime plumbing.</p>
+
+<h3>Layer 3 &amp; 4 &mdash; run the real handler in a real container, attach a debugger</h3>
+
+<p>Reach for SAM CLI when you need to reproduce something environment-specific: a cold-start timing issue, a runtime version quirk, or the exact event shape API Gateway sends.</p>
+
+<pre><span class="file-label">terminal — invoke with a sample event</span>
+sam local invoke GetCustomerProfileFunction \
+  -t template.yaml \
+  -e events/api_gateway_get.json \
+  --env-vars env.json</pre>
+
+<pre><span class="file-label">terminal — run API Gateway + Lambda on localhost</span>
+sam local start-api -t template.yaml --env-vars env.json
+<span class="cmt"># curl http://127.0.0.1:3000/customers/1</span></pre>
+
+<pre><span class="file-label">terminal — attach a real debugger (step through code)</span>
+sam local invoke GetCustomerProfileFunction \
+  -t template.yaml -e events/api_gateway_get.json \
+  -d 5678 --debugger-path ./debugpy --debug-args="-m debugpy --listen 0.0.0.0:5678 --wait-for-client"
+<span class="cmt"># then attach VS Code's Python debugger to localhost:5678 — breakpoints work exactly</span>
+<span class="cmt"># as if the code were running natively, but it's actually inside the Lambda container</span></pre>
+
+<div class="callout info">
+  <strong>Container images: use the Runtime Interface Emulator directly</strong>
+  If you build a container-image Lambda, you don't need SAM at all to test locally &mdash; the public base images ship with the <strong>Runtime Interface Emulator (RIE)</strong>. <code>docker run -p 9000:8080 my-lambda-image</code>, then <code>curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"customer_id":"1"}'</code>. This is the same mechanism SAM uses under the hood.
+</div>
+
+<h3>Layer 5 &mdash; LocalStack, when the handler talks to several AWS services</h3>
+
+<p>If <code>GetCustomerProfile</code> reads DynamoDB, calls Bedrock, and writes to S3, wiring up <code>moto</code> for all three or hand-crafting every SAM env var gets tedious. LocalStack runs an AWS-API-compatible server in Docker and lets you point the real AWS SDK at it.</p>
+
+<pre><span class="file-label">terminal</span>
+docker run -d --name localstack -p 4566:4566 localstack/localstack
+
+<span class="cmt"># seed a fake table the handler can hit</span>
+aws --endpoint-url=http://localhost:4566 dynamodb create-table \
+  --table-name Customers --attribute-definitions AttributeName=pk,AttributeType=S \
+  --key-schema AttributeName=pk,KeyType=HASH --billing-mode PAY_PER_REQUEST
+
+samlocal deploy --stack-name local-agent-tools   <span class="cmt"># samlocal = SAM wrapper for LocalStack, like cdklocal for CDK</span>
+awslocal lambda invoke --function-name GetCustomerProfile out.json &amp;&amp; cat out.json</pre>
+
+<div class="callout warn">
+  <strong>None of this replaces a real staging deploy</strong>
+  Layers 1&ndash;5 all catch wiring and logic bugs cheaply. They do not prove IAM permissions are correct (moto and LocalStack don't enforce policies the way real AWS does), nor do they reproduce real cold-start latency, VPC networking, or account-level quotas. A real deploy to a QA/staging account (next section) is still the last gate before prod.
+</div>
+
+<h2>Grouping Lambdas and running them per environment (QA, UAT, prod)</h2>
+
+<p>Yes &mdash; this is the normal way teams run Lambda. The pattern is the same one used for every other resource in this course: <strong>one parameterized definition, deployed multiple times</strong>, not multiple copies of the code.</p>
+
+<h3>Option A: separate AWS accounts per environment (recommended for finance)</h3>
+
+<p>QA, UAT, and prod are three different AWS accounts, tied together by AWS Organizations. Same CDK app or SAM template, same function code, deployed into a different account+region per environment via CI/CD.</p>
+
+<pre><span class="file-label">app.py — CDK, one stack class, three environments</span>
+<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
+<span class="kw">from</span> finapp_infra.lambda_group_stack <span class="kw">import</span> LambdaGroupStack
+
+app = cdk.<span class="cls">App</span>()
+env_name = app.<span class="fn">node</span>.<span class="fn">try_get_context</span>(<span class="str">"env"</span>) <span class="kw">or</span> <span class="str">"qa"</span>   <span class="cmt"># cdk deploy -c env=uat</span>
+
+accounts = {
+    <span class="str">"qa"</span>:   <span class="str">"111111111111"</span>,
+    <span class="str">"uat"</span>:  <span class="str">"222222222222"</span>,
+    <span class="str">"prod"</span>: <span class="str">"333333333333"</span>,
+}
+
+<span class="cls">LambdaGroupStack</span>(app, <span class="str">f"AgentTools-{env_name}"</span>,
+    env_name=env_name,
+    env=cdk.<span class="cls">Environment</span>(account=accounts[env_name], region=<span class="str">"us-east-1"</span>))
+
+app.<span class="fn">synth</span>()</pre>
+
+<pre><span class="file-label">finapp_infra/lambda_group_stack.py — several related functions, one stack</span>
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> Stack, Duration
+<span class="kw">from</span> aws_cdk <span class="kw">import</span> aws_lambda <span class="kw">as</span> _lambda
+<span class="kw">from</span> constructs <span class="kw">import</span> Construct
+
+<span class="kw">class</span> <span class="cls">LambdaGroupStack</span>(Stack):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, scope: Construct, cid: <span class="cls">str</span>, env_name: <span class="cls">str</span>, **kwargs):
+        <span class="fn">super</span>().<span class="fn">__init__</span>(scope, cid, **kwargs)
+
+        <span class="cmt"># Config that differs per environment lives in one place, not scattered across functions</span>
+        config = {
+            <span class="str">"qa"</span>:   {<span class="str">"memory"</span>: <span class="num">256</span>,  <span class="str">"log_retention_days"</span>: <span class="num">7</span>,  <span class="str">"reserved_concurrency"</span>: <span class="num">5</span>},
+            <span class="str">"uat"</span>:  {<span class="str">"memory"</span>: <span class="num">512</span>,  <span class="str">"log_retention_days"</span>: <span class="num">30</span>, <span class="str">"reserved_concurrency"</span>: <span class="num">10</span>},
+            <span class="str">"prod"</span>: {<span class="str">"memory"</span>: <span class="num">1024</span>, <span class="str">"log_retention_days"</span>: <span class="num">90</span>, <span class="str">"reserved_concurrency"</span>: <span class="num">50</span>},
+        }[env_name]
+
+        <span class="cmt"># Group: every tool Lambda for the agent shares naming, tags, and defaults</span>
+        <span class="kw">for</span> name, handler_path <span class="kw">in</span> [
+            (<span class="str">"GetCustomerProfile"</span>, <span class="str">"lambda/get_customer_profile"</span>),
+            (<span class="str">"GetAccountBalance"</span>,  <span class="str">"lambda/get_account_balance"</span>),
+            (<span class="str">"LookupTradeHistory"</span>, <span class="str">"lambda/lookup_trade_history"</span>),
+        ]:
+            fn = _lambda.<span class="cls">Function</span>(self, name,
+                function_name=<span class="str">f"{name}-{env_name}"</span>,
+                runtime=_lambda.Runtime.PYTHON_3_13,
+                handler=<span class="str">"handler.lambda_handler"</span>,
+                code=_lambda.Code.<span class="fn">from_asset</span>(handler_path),
+                memory_size=config[<span class="str">"memory"</span>],
+                timeout=Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
+                reserved_concurrent_executions=config[<span class="str">"reserved_concurrency"</span>],
+                environment={<span class="str">"ENV"</span>: env_name},
+            )
+            <span class="cmt"># tag every function in the group the same way — cost allocation, ownership</span>
+            cdk.Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">"team"</span>, <span class="str">"agent-tools"</span>)
+            cdk.Tags.<span class="fn">of</span>(fn).<span class="fn">add</span>(<span class="str">"environment"</span>, env_name)</pre>
+
+<div class="flow">
+  <div class="ftitle">Promotion pipeline</div>
+git push to <code>main</code>
+  <span class="arrow">&rarr;</span> CI builds one artifact (zip/image), tags it with the commit SHA
+  <span class="arrow">&rarr;</span> <code>cdk deploy -c env=qa</code> into the QA account &mdash; automatic on every merge
+  <span class="arrow">&rarr;</span> automated + manual QA sign-off
+  <span class="arrow">&rarr;</span> <code>cdk deploy -c env=uat</code> into the UAT account &mdash; manual trigger / approval gate
+  <span class="arrow">&rarr;</span> business sign-off
+  <span class="arrow">&rarr;</span> <code>cdk deploy -c env=prod</code> into the prod account &mdash; requires a second approver
+</div>
+
+<h3>Option B: one account, environment separated by stage/alias</h3>
+
+<p>Smaller teams sometimes skip separate accounts and instead separate environments within one account using naming and Lambda aliases:</p>
+
+<table>
+  <thead><tr><th>Mechanism</th><th>How it separates environments</th></tr></thead>
+  <tbody>
+    <tr><td>Function name suffix</td><td><code>GetCustomerProfile-qa</code>, <code>GetCustomerProfile-uat</code>, <code>GetCustomerProfile-prod</code> as three distinct function resources (what the CDK loop above does even across accounts)</td></tr>
+    <tr><td>Alias + Version</td><td>One function, three named aliases (<code>qa</code>, <code>uat</code>, <code>live</code>) each pointing at a different published version &mdash; API Gateway stages invoke the alias, not the function directly</td></tr>
+    <tr><td>API Gateway stages</td><td><code>/qa/customers/1</code>, <code>/uat/customers/1</code>, <code>/prod/customers/1</code> &mdash; each stage wired to the matching alias</td></tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <strong>Prefer separate accounts for a financial app</strong>
+  Single-account, alias-only separation is cheaper to set up but means a QA IAM role, a QA test script with the wrong target, or a runaway QA load test all execute against the <em>same account</em> that holds production data and quotas. Account-level isolation (Option A) is the stronger blast-radius boundary and is what most bank/fintech compliance frameworks expect. Use SCPs (Service Control Policies) at the AWS Organization level so QA/UAT accounts categorically cannot reach production data stores even by mistake.
+</div>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>Business logic covered by handler-level unit tests (Layer 1&ndash;2 above) that need no Docker and no AWS credentials</li>
+  <li>At least one <code>sam local invoke</code> / RIE run against the packaged artifact before it ships, catching packaging and runtime-version issues unit tests can't</li>
+  <li>Execution role scoped to exact ARNs, one role per function (or per closely related group) &mdash; never a shared role with broad access "to be safe"</li>
+  <li>Memory sized from CloudWatch metrics, not guessed; timeout set with margin, not equal to the slowest observed run</li>
+  <li>Reserved concurrency set on anything that calls a rate-limited downstream (RDS, a third-party API) so a traffic spike can't exhaust connections</li>
+  <li>Function/stack code parameterized by environment (account, memory, concurrency, log retention) &mdash; never branched with <code>if env == "prod"</code> string checks scattered through business logic</li>
+  <li>QA and UAT in separate AWS accounts from prod, with SCPs preventing cross-account data access</li>
+  <li>CI/CD promotes the same built artifact through QA &rarr; UAT &rarr; prod &mdash; never rebuilds per environment</li>
+  <li>CloudWatch alarms on <code>Errors</code>, <code>Throttles</code>, and <code>Duration</code> p99 per function, per environment</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on Lambda architecture, local testing, and multi-environment deploys.</p>
+
+  <div class="question" id="q1">
+    <p>1. Why do Lambda best practices say to create the boto3 client at module scope, outside the handler function?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> It's required syntax — Lambda won't import the module otherwise</label>
+      <label><input type="radio" name="q1" value="b"> Module-scope code runs once per cold start and is reused across warm invocations of the same execution environment, avoiding reconnecting on every call</label>
+      <label><input type="radio" name="q1" value="c"> It makes the deployment package smaller</label>
+      <label><input type="radio" name="q1" value="d"> It's needed for the execution role to attach correctly</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Everything outside the handler runs once when a fresh execution environment is provisioned (a cold start) and then persists in memory for every warm invocation that reuses that environment — so an expensive client setup only happens occasionally, not on every event.','Not quite. This is a performance idiom, not a syntax requirement, deployment-size concern, or IAM mechanism: it exploits environment reuse between warm invocations to avoid redoing setup work on every call.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. You want to step through your Lambda handler's real logic with breakpoints, with zero AWS calls and zero Docker, in under a second per run. Which local-testing layer fits?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> LocalStack</label>
+      <label><input type="radio" name="q2" value="b"> sam local invoke</label>
+      <label><input type="radio" name="q2" value="c"> Calling lambda_handler(event, None) directly in a pytest test, with moto mocking any AWS calls</label>
+      <label><input type="radio" name="q2" value="d"> Deploying to a QA account and checking CloudWatch Logs</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','c','Correct. The handler is just a Python function — calling it directly under your normal debugger, with moto faking any boto3 calls, is the fastest loop and needs no Docker, network, or AWS account. Reach for sam local invoke or LocalStack only when you need to reproduce the actual Lambda container or multiple real AWS service interactions.','Not quite. LocalStack and sam local invoke both need Docker and add real latency; a QA deploy is the slowest option of all. For a millisecond debug loop with breakpoints, call the handler function directly in a unit test.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. What does a Lambda <strong>alias</strong> let you do that a bare function name doesn't?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> Run the function in a different AWS region</label>
+      <label><input type="radio" name="q3" value="b"> Point a named, mutable reference (e.g. "live") at a specific immutable version, and optionally split traffic between two versions for canary rollout</label>
+      <label><input type="radio" name="q3" value="c"> Increase the function's memory beyond 10,240 MB</label>
+      <label><input type="radio" name="q3" value="d"> Skip the need for an execution role</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','b','Correct. Versions are immutable snapshots; an alias is a movable pointer to one (or, with weighted routing, to two — enabling canary/blue-green traffic shifts) — callers invoke the alias and never need to know which version number is live.','Not quite. Aliases don''t change region or memory limits and every invocation still uses an execution role. Their job is indirection: a stable name that can be repointed at a new version, including gradually via weighted traffic splitting.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. For a financial app, why is running QA and UAT in <em>separate AWS accounts</em> from prod preferred over separating them by function-name suffix in one account?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> Separate accounts are required by the Lambda service and cannot be avoided</label>
+      <label><input type="radio" name="q4" value="b"> Account boundaries plus Service Control Policies give a hard blast-radius limit — a QA mistake (bad IAM role, runaway load test, wrong target) categorically cannot reach production data</label>
+      <label><input type="radio" name="q4" value="c"> It's the only way to give functions different memory settings per environment</label>
+      <label><input type="radio" name="q4" value="d"> Separate accounts make cold starts faster</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. Naming or aliasing separates environments logically within the same account and IAM boundary — a bug or misconfigured credential can still technically reach prod resources. Separate accounts with SCPs make that reach impossible, not just unlikely, which is the isolation level finance compliance frameworks generally expect.','Not quite. Memory-per-environment and cold-start behavior are unaffected by account structure — Option B (aliases/suffixes) can set those too. The real reason is blast-radius: account + SCP isolation makes cross-environment access impossible, not just discouraged by convention.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  A Lambda invocation is: event in &rarr; a managed execution environment (cold or warm) runs your handler under an IAM execution role &rarr; response out, logged to CloudWatch. You can test almost all of it without AWS: call the handler directly with <code>moto</code> for the fastest loop, use <code>sam local invoke</code> / the Runtime Interface Emulator to run the real container with a real debugger attached, and reach for LocalStack when several AWS services are involved &mdash; but a real staging deploy is still the final gate, since none of these enforce IAM the way real AWS does. To run related Lambdas across QA/UAT/prod, parameterize one stack definition by environment (memory, concurrency, log retention, account) and promote the same built artifact through each stage via CI/CD; prefer separate AWS accounts with SCPs over same-account naming/aliases for the hard isolation a financial app needs.
+</div>
+
+<div class="lesson-nav">
+  <a href="0010-sqs-lambda.html">&larr; L10: SQS + Lambda</a> &middot;
+  <a href="0016-lambda-bedrock-agent-tools.html">&larr; L16: Lambda + Bedrock Agent Tools</a> &middot;
+  <a href="0018-aws-cdk.html">&larr; L18: AWS CDK</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: Lambda extensions (observability agents that run alongside your handler) &middot; Lambda SnapStart for Java cold-start elimination &middot; Step Functions for orchestrating many Lambdas as one workflow &middot; canary deployments with CodeDeploy + Lambda aliases<br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank">AWS Lambda Developer Guide</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html" target="_blank">Lambda execution environment</a> &middot;
+  <a href="https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-local.html" target="_blank">SAM CLI local testing</a> &middot;
+  <a href="https://docs.aws.amazon.com/lambda/latest/dg/images-test.html" target="_blank">Testing Lambda container images locally (RIE)</a> &middot;
+  <a href="https://docs.localstack.cloud/user-guide/aws/lambda/" target="_blank">LocalStack Lambda</a> &middot;
+  <a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-aliases.html" target="_blank">Lambda aliases &amp; versions</a> &middot;
+  <a href="https://github.com/getmoto/moto" target="_blank">moto</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
