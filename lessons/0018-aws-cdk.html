@@ -259,6 +259,117 @@ app.<span class="fn">synth</span>()</pre>
     <span class="cmt"># grant_read_data must NOT include PutItem / UpdateItem / DeleteItem</span>
     template.<span class="fn">resource_count_is</span>(<span class="str">"AWS::IAM::Policy"</span>, <span class="num">1</span>)</pre>
 
+<h2>Validating a stack before you deploy</h2>
+
+<p>Nothing here requires an AWS account. Run all four before you ever run <code>cdk deploy</code>:</p>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong><code>cdk synth</code></strong> &mdash; runs your Python and renders CloudFormation. Catches import errors, bad construct props, and typos. If it doesn't synth, it can't deploy.</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Assertion tests</strong> (shown above) &mdash; assert on the synthesized template: encryption on, PITR on, exact IAM actions granted. Runs in CI on every PR, no AWS calls.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong><code>cdk-nag</code></strong> &mdash; a library of compliance rules (AwsSolutions, HIPAA, PCI-DSS packs) that runs during <code>synth</code> and fails the build on violations, with a suppression mechanism for accepted exceptions.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong><code>cdk diff</code></strong> &mdash; the only one of the four that talks to AWS (read-only, to compare against the deployed stack). Run against staging before every prod deploy; treat any <code>[-/+]</code> replacement as blocking until explained.</p></div></div>
+</div>
+
+<pre><span class="file-label">app.py — wiring cdk-nag in</span>
+<span class="kw">import</span> aws_cdk <span class="kw">as</span> cdk
+<span class="kw">from</span> cdk_nag <span class="kw">import</span> AwsSolutionsChecks, NagSuppressions
+<span class="kw">from</span> finapp_infra.agent_tools_stack <span class="kw">import</span> AgentToolsStack
+
+app = cdk.<span class="cls">App</span>()
+stack = <span class="cls">AgentToolsStack</span>(app, <span class="str">"AgentTools-staging"</span>,
+    env=cdk.<span class="cls">Environment</span>(account=<span class="str">"111111111111"</span>, region=<span class="str">"us-east-1"</span>))
+
+<span class="cmt"># Fails `cdk synth` if any resource violates the AwsSolutions rule pack</span>
+cdk.Aspects.<span class="fn">of</span>(app).<span class="fn">add</span>(<span class="cls">AwsSolutionsChecks</span>(verbose=<span class="kw">True</span>))
+
+<span class="cmt"># Documented, reviewed exception — not a silent bypass</span>
+NagSuppressions.<span class="fn">add_resource_suppressions</span>(stack, [
+    {<span class="str">"id"</span>: <span class="str">"AwsSolutions-IAM4"</span>, <span class="str">"reason"</span>: <span class="str">"Lambda basic execution managed policy is acceptable here"</span>},
+])
+
+app.<span class="fn">synth</span>()</pre>
+
+<div class="callout warn">
+  <strong>Type-check it too</strong>
+  CDK stacks are ordinary Python (or TS) &mdash; run <code>mypy</code> / <code>pyright</code> and your linter over the infra package in CI exactly as you would application code. A wrong keyword argument to a construct is a typo the type checker catches before <code>synth</code> even runs.
+</div>
+
+<h2>Running it on your laptop with mocks &mdash; no AWS account touched</h2>
+
+<p>Four layers, from &ldquo;fully offline&rdquo; to &ldquo;emulates real AWS locally.&rdquo; Use the cheapest one that answers your question.</p>
+
+<table>
+  <thead><tr><th>Layer</th><th>What it mocks</th><th>When to reach for it</th></tr></thead>
+  <tbody>
+    <tr><td><code>cdk synth</code></td><td>Nothing needs mocking &mdash; it's pure Python, no network calls</td><td>Every save, via <code>cdk watch</code> or a file-watcher; confirms the stack still compiles</td></tr>
+    <tr><td><strong>moto</strong></td><td>The boto3 AWS API surface, in-process</td><td>Unit-testing your <em>Lambda handler code</em> (not the infra) &mdash; fake DynamoDB/S3 in the test process, zero network</td></tr>
+    <tr><td><strong>SAM CLI</strong> (<code>sam local invoke</code>)</td><td>The Lambda execution environment (real Docker container matching the runtime)</td><td>Running the actual handler locally, e.g. against LocalStack or a local DynamoDB endpoint</td></tr>
+    <tr><td><strong>LocalStack</strong> + <code>cdklocal</code></td><td>The AWS control plane itself &mdash; DynamoDB, Lambda, S3, IAM run in a local container</td><td>&ldquo;Deploying&rdquo; the whole CDK stack end-to-end on your laptop, free, no real account</td></tr>
+  </tbody>
+</table>
+
+<h3>1. Unit-test the Lambda handler with moto</h3>
+
+<p>This tests your business logic, decoupled entirely from CDK &mdash; fastest feedback loop, runs in plain <code>pytest</code>.</p>
+
+<pre><span class="file-label">lambda/get_customer_profile/tests/test_handler.py</span>
+<span class="kw">import</span> os, boto3, pytest
+<span class="kw">from</span> moto <span class="kw">import</span> mock_aws
+<span class="kw">from</span> handler <span class="kw">import</span> lambda_handler
+
+<span class="fn">@mock_aws</span>
+<span class="kw">def</span> <span class="fn">test_returns_profile_for_known_customer</span>():
+    os.environ[<span class="str">"TABLE_NAME"</span>] = <span class="str">"Customers"</span>
+    ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
+    table = ddb.<span class="fn">create_table</span>(
+        TableName=<span class="str">"Customers"</span>,
+        KeySchema=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>},
+                   {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"KeyType"</span>: <span class="str">"RANGE"</span>}],
+        AttributeDefinitions=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>},
+                               {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>}],
+        BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,
+    )
+    table.<span class="fn">put_item</span>(Item={<span class="str">"pk"</span>: <span class="str">"CUST#1"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>, <span class="str">"name"</span>: <span class="str">"Ada"</span>})
+
+    result = <span class="fn">lambda_handler</span>({<span class="str">"customer_id"</span>: <span class="str">"1"</span>}, <span class="kw">None</span>)
+
+    <span class="kw">assert</span> result[<span class="str">"name"</span>] == <span class="str">"Ada"</span></pre>
+
+<div class="callout info">
+  <strong>No CDK, no CloudFormation, no Docker</strong>
+  <code>moto</code> patches boto3 in-process to fake the DynamoDB API. This test runs in milliseconds and is exactly what you'd write for a non-Lambda function &mdash; the CDK-specific piece (does the real IAM grant work, is the table configured right) is covered separately by the assertion tests on the synthesized template.
+</div>
+
+<h3>2. Invoke the real handler locally with SAM CLI</h3>
+
+<p>SAM CLI reads CDK's own synthesized output (it understands <code>cdk.out/</code> directly) and runs your Lambda in a Docker container using the actual runtime image &mdash; closer to production than moto, because your code executes for real, just against a local or mocked endpoint.</p>
+
+<pre><span class="file-label">terminal</span>
+cdk synth                                          <span class="cmt"># writes cdk.out/AgentTools-staging.template.json</span>
+sam local invoke GetCustomerProfile \
+  -t cdk.out/AgentTools-staging.template.json \
+  -e events/get_customer.json \
+  --docker-network host                            <span class="cmt"># so the container can reach LocalStack on localhost</span></pre>
+
+<h3>3. Deploy the whole stack to LocalStack</h3>
+
+<p><strong>LocalStack</strong> runs an AWS-API-compatible server in a Docker container on your laptop; <strong><code>cdklocal</code></strong> (the <code>aws-cdk-local</code> npm package) is a drop-in wrapper for the CDK CLI that points <code>bootstrap</code>/<code>deploy</code>/<code>destroy</code> at it instead of real AWS. You get a genuinely deployed stack &mdash; a real (emulated) DynamoDB table, a real (emulated) Lambda invoked over the network &mdash; for $0 and no account.</p>
+
+<pre><span class="file-label">terminal</span>
+docker run -d --name localstack -p 4566:4566 localstack/localstack
+
+npm install -g aws-cdk-local aws-cdk
+cdklocal bootstrap aws://000000000000/us-east-1     <span class="cmt"># LocalStack accepts any account id</span>
+cdklocal deploy AgentTools-staging
+
+<span class="cmt"># hit the emulated table directly to sanity-check</span>
+aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</pre>
+
+<div class="callout warn">
+  <strong>LocalStack is a fidelity trade, not a guarantee</strong>
+  The community edition emulates the common APIs well but not every service, IAM enforcement nuance, or quota behavior &mdash; it catches wiring bugs (wrong table name, malformed event, broken handler logic) cheaply, but a clean LocalStack deploy is not proof a real AWS deploy will behave identically. Keep a real staging account (step 4 of the six-command workflow above) as the final gate before prod.
+</div>
+
 <h2>CDK vs Terraform vs raw CloudFormation</h2>
 
 <table>
@@ -301,9 +412,11 @@ app.<span class="fn">synth</span>()</pre>
   <li><code>removal_policy=RETAIN</code> + deletion protection on every database, bucket, and audit log group</li>
   <li><code>cdk diff</code> generated in CI and reviewed before every prod deploy; replacements (<code>[-/+]</code>) treated as blocking until understood</li>
   <li>Assertion tests on the synthesized template for the invariants that matter (encryption, PITR, no wildcard policies)</li>
-  <li><code>cdk-nag</code> AwsSolutions rules wired into <code>synth</code></li>
+  <li><code>cdk-nag</code> AwsSolutions rules wired into <code>synth</code>; suppressions documented with a reason, never silent</li>
+  <li>Lambda handler logic unit-tested with <code>moto</code>, independent of the CDK stack that deploys it</li>
   <li>Bootstrap stack version kept current; deploy role permissions scoped, not <code>AdministratorAccess</code>, once past initial setup</li>
   <li>Stateful resources (RDS, DynamoDB) in a separate long-lived stack from fast-changing compute, to limit blast radius</li>
+  <li>Secrets and DB passwords referenced from Secrets Manager / SSM Parameter Store at deploy time &mdash; never hard-coded in stack code</li>
 </ul>
 
 <!-- QUIZ -->
@@ -370,8 +483,8 @@ app.<span class="fn">synth</span>()</pre>
   <a href="0003-iam.html">&larr; L3: IAM</a> &middot;
   <a href="0017-dynamodb.html">&larr; L17: DynamoDB</a><br><br>
   <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
-  Explore next: CDK Pipelines (self-mutating CI/CD) &middot; custom L3 constructs for your team &middot; <code>cdk import</code> for existing resources &middot; CDK for Terraform (CDKTF) if you need the Terraform engine<br><br>
-  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/cdk/v2/guide/home.html" target="_blank">AWS CDK v2 Developer Guide</a><br><br>
+  Explore next: CDK Pipelines (self-mutating CI/CD) &middot; custom L3 constructs for your team &middot; <code>cdk import</code> for existing resources &middot; CDK for Terraform (CDKTF) if you need the Terraform engine &middot; Aspects for cross-cutting stack rules &middot; multi-stack cross-references and shared context in <code>cdk.json</code><br><br>
+  <strong>Primary source to read:</strong> <a href="https://docs.aws.amazon.com/cdk/v2/guide/home.html" target="_blank">AWS CDK v2 Developer Guide</a> &middot; <a href="https://docs.localstack.cloud/user-guide/integrations/aws-cdk/" target="_blank">LocalStack + CDK</a><br><br>
   <strong>Ask your teacher anything that's unclear.</strong>
 </div>
 
@@ -381,7 +494,10 @@ app.<span class="fn">synth</span>()</pre>
   <a href="https://docs.aws.amazon.com/cdk/v2/guide/constructs.html" target="_blank">Constructs (L1/L2/L3)</a> &middot;
   <a href="https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html" target="_blank">Bootstrapping</a> &middot;
   <a href="https://docs.aws.amazon.com/cdk/v2/guide/testing.html" target="_blank">Testing constructs</a> &middot;
-  <a href="https://github.com/cdklabs/cdk-nag" target="_blank">cdk-nag</a>
+  <a href="https://github.com/cdklabs/cdk-nag" target="_blank">cdk-nag</a> &middot;
+  <a href="https://github.com/getmoto/moto" target="_blank">moto</a> &middot;
+  <a href="https://docs.localstack.cloud/user-guide/integrations/aws-cdk/" target="_blank">LocalStack + CDK</a> &middot;
+  <a href="https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-local.html" target="_blank">SAM CLI local invoke</a>
 </footer>
 
 </article>
