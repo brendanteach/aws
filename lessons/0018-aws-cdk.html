@@ -199,9 +199,9 @@ tsconfig.json</pre>
 
     <span class="cmt">// L2 Lambda — code bundled from a local dir and uploaded automatically</span>
     <span class="kw">const</span> fn = <span class="kw">new</span> lambda.<span class="cls">Function</span>(<span class="kw">this</span>, <span class="str">'GetCustomerProfile'</span>, {
-      runtime: lambda.Runtime.PYTHON_3_13,
-      handler: <span class="str">'handler.lambda_handler'</span>,
-      code: lambda.Code.<span class="fn">fromAsset</span>(<span class="str">'lambda/get_customer_profile'</span>),
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: <span class="str">'index.handler'</span>,
+      code: lambda.Code.<span class="fn">fromAsset</span>(<span class="str">'lambda/get-customer-profile'</span>),
       timeout: Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
       environment: { TABLE_NAME: table.tableName },
     });
@@ -228,8 +228,8 @@ tsconfig.json</pre>
 app.<span class="fn">synth</span>();</pre>
 
 <div class="callout info">
-  <strong>The Lambda's runtime is a separate choice from the CDK's language</strong>
-  The stack above is TypeScript, but <code>runtime: lambda.Runtime.PYTHON_3_13</code> still points at a local directory of <em>Python</em> handler code (the same <code>handler.lambda_handler</code> from Lessons 10, 16, and 21). CDK's authoring language and your Lambda's execution runtime are independent decisions &mdash; a TypeScript CDK app deploying Python (or Node, Java, Go&hellip;) functions is completely normal.
+  <strong>The Lambda's runtime is still a separate choice from the CDK's language</strong>
+  This stack's <code>runtime: lambda.Runtime.NODEJS_20_X</code> handler is the same <code>index.handler</code> shown in <a href="0021-lambda-local-dev-environments.html">Lesson 21</a>, so both the infra and the function here are TypeScript/Node end to end. That's a choice, not a requirement &mdash; CDK's authoring language and a Lambda's execution runtime are independent decisions, and this exact stack would deploy just as well pointing <code>runtime</code> at <code>PYTHON_3_13</code> (or Java, or Go) with a handler written in that language instead.
 </div>
 
 <div class="callout cdk">
@@ -329,53 +329,61 @@ app.<span class="fn">synth</span>();</pre>
   <thead><tr><th>Layer</th><th>What it mocks</th><th>When to reach for it</th></tr></thead>
   <tbody>
     <tr><td><code>cdk synth</code></td><td>Nothing needs mocking &mdash; it's pure TypeScript, no network calls</td><td>Every save, via <code>cdk watch</code> or a file-watcher; confirms the stack still compiles</td></tr>
-    <tr><td><strong>moto</strong></td><td>The boto3 AWS API surface, in-process</td><td>Unit-testing your <em>Lambda handler code</em> &mdash; fake DynamoDB/S3 in the test process, zero network. This tests the Lambda's own runtime (here, Python) independently of what language the CDK stack around it is written in.</td></tr>
+    <tr><td><strong>aws-sdk-client-mock</strong></td><td>The AWS SDK v3 client surface, in-process</td><td>Unit-testing your <em>Lambda handler code</em> &mdash; fake DynamoDB/S3 in the test process, zero network. This tests the Lambda's own runtime code independently of the CDK stack around it &mdash; they just happen to both be TypeScript here.</td></tr>
     <tr><td><strong>SAM CLI</strong> (<code>sam local invoke</code>)</td><td>The Lambda execution environment (real Docker container matching the runtime)</td><td>Running the actual handler locally, e.g. against LocalStack or a local DynamoDB endpoint</td></tr>
     <tr><td><strong>LocalStack</strong> + <code>cdklocal</code></td><td>The AWS control plane itself &mdash; DynamoDB, Lambda, S3, IAM run in a local container</td><td>&ldquo;Deploying&rdquo; the whole CDK stack end-to-end on your laptop, free, no real account</td></tr>
   </tbody>
 </table>
 
-<h3>1. Unit-test the Lambda handler with moto</h3>
+<h3>1. Unit-test the Lambda handler with aws-sdk-client-mock</h3>
 
-<p>This tests your business logic, decoupled entirely from CDK &mdash; fastest feedback loop, runs in plain <code>pytest</code>.</p>
+<p>This tests your business logic, decoupled entirely from CDK &mdash; fastest feedback loop, runs in plain <code>jest</code> (see <a href="0021-lambda-local-dev-environments.html">Lesson 21</a> for the full local-testing ladder this handler is used in).</p>
 
-<pre><span class="file-label">lambda/get_customer_profile/tests/test_handler.py</span>
-<span class="kw">import</span> os, boto3, pytest
-<span class="kw">from</span> moto <span class="kw">import</span> mock_aws
-<span class="kw">from</span> handler <span class="kw">import</span> lambda_handler
+<pre><span class="file-label">lambda/get-customer-profile/index.ts</span>
+<span class="kw">import</span> { DynamoDBClient } <span class="kw">from</span> <span class="str">'@aws-sdk/client-dynamodb'</span>;
+<span class="kw">import</span> { DynamoDBDocumentClient, GetCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/lib-dynamodb'</span>;
 
-<span class="fn">@mock_aws</span>
-<span class="kw">def</span> <span class="fn">test_returns_profile_for_known_customer</span>():
-    os.environ[<span class="str">"TABLE_NAME"</span>] = <span class="str">"Customers"</span>
-    ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
-    table = ddb.<span class="fn">create_table</span>(
-        TableName=<span class="str">"Customers"</span>,
-        KeySchema=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>},
-                   {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"KeyType"</span>: <span class="str">"RANGE"</span>}],
-        AttributeDefinitions=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>},
-                               {<span class="str">"AttributeName"</span>: <span class="str">"sk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>}],
-        BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,
-    )
-    table.<span class="fn">put_item</span>(Item={<span class="str">"pk"</span>: <span class="str">"CUST#1"</span>, <span class="str">"sk"</span>: <span class="str">"PROFILE"</span>, <span class="str">"name"</span>: <span class="str">"Ada"</span>})
+<span class="kw">const</span> ddb = DynamoDBDocumentClient.<span class="fn">from</span>(<span class="kw">new</span> DynamoDBClient({}));
 
-    result = <span class="fn">lambda_handler</span>({<span class="str">"customer_id"</span>: <span class="str">"1"</span>}, <span class="kw">None</span>)
+<span class="kw">export const</span> <span class="fn">handler</span> = <span class="kw">async</span> (event: { customer_id: <span class="cls">string</span> }) => {
+  <span class="kw">const</span> { Item } = <span class="kw">await</span> ddb.<span class="fn">send</span>(<span class="kw">new</span> GetCommand({
+    TableName: process.env.TABLE_NAME,
+    Key: { pk: <span class="str">`CUST#${event.customer_id}`</span> },
+  }));
+  <span class="kw">return</span> Item;
+};</pre>
 
-    <span class="kw">assert</span> result[<span class="str">"name"</span>] == <span class="str">"Ada"</span></pre>
+<pre><span class="file-label">lambda/get-customer-profile/index.test.ts</span>
+<span class="kw">import</span> { mockClient } <span class="kw">from</span> <span class="str">'aws-sdk-client-mock'</span>;
+<span class="kw">import</span> { DynamoDBDocumentClient, GetCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/lib-dynamodb'</span>;
+<span class="kw">import</span> { handler } <span class="kw">from</span> <span class="str">'./index'</span>;
+
+<span class="kw">const</span> ddbMock = <span class="fn">mockClient</span>(DynamoDBDocumentClient);
+<span class="fn">beforeEach</span>(() => ddbMock.<span class="fn">reset</span>());
+
+test(<span class="str">'returns the profile for a known customer'</span>, <span class="kw">async</span> () => {
+  ddbMock.<span class="fn">on</span>(GetCommand, { TableName: <span class="str">'Customers'</span>, Key: { pk: <span class="str">'CUST#1'</span> } })
+    .<span class="fn">resolves</span>({ Item: { pk: <span class="str">'CUST#1'</span>, name: <span class="str">'Ada'</span> } });
+
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">handler</span>({ customer_id: <span class="str">'1'</span> });
+
+  <span class="fn">expect</span>(result?.name).<span class="fn">toBe</span>(<span class="str">'Ada'</span>);
+});</pre>
 
 <div class="callout info">
   <strong>No CDK, no CloudFormation, no Docker</strong>
-  <code>moto</code> patches boto3 in-process to fake the DynamoDB API. This test runs in milliseconds and is exactly what you'd write for a non-Lambda function &mdash; the CDK-specific piece (does the real IAM grant work, is the table configured right) is covered separately by the assertion tests on the synthesized template.
+  <code>aws-sdk-client-mock</code> intercepts the SDK v3 client in-process to fake the DynamoDB API. This test runs in milliseconds and is exactly what you'd write for a non-Lambda function &mdash; the CDK-specific piece (does the real IAM grant work, is the table configured right) is covered separately by the assertion tests on the synthesized template shown earlier.
 </div>
 
 <h3>2. Invoke the real handler locally with SAM CLI</h3>
 
-<p>SAM CLI reads CDK's own synthesized output (it understands <code>cdk.out/</code> directly) and runs your Lambda in a Docker container using the actual runtime image &mdash; closer to production than moto, because your code executes for real, just against a local or mocked endpoint.</p>
+<p>SAM CLI reads CDK's own synthesized output (it understands <code>cdk.out/</code> directly) and runs your Lambda in a Docker container using the actual runtime image &mdash; closer to production than <code>aws-sdk-client-mock</code>, because your code executes for real, just against a local or mocked endpoint.</p>
 
 <pre><span class="file-label">terminal</span>
 cdk synth                                          <span class="cmt"># writes cdk.out/AgentTools-staging.template.json</span>
 sam local invoke GetCustomerProfile \
   -t cdk.out/AgentTools-staging.template.json \
-  -e events/get_customer.json \
+  -e events/get-customer.json \
   --docker-network host                            <span class="cmt"># so the container can reach LocalStack on localhost</span></pre>
 
 <h3>3. Deploy the whole stack to LocalStack</h3>
@@ -440,7 +448,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
   <li><code>cdk diff</code> generated in CI and reviewed before every prod deploy; replacements (<code>[-/+]</code>) treated as blocking until understood</li>
   <li>Assertion tests on the synthesized template for the invariants that matter (encryption, PITR, no wildcard policies)</li>
   <li><code>cdk-nag</code> AwsSolutions rules wired into <code>synth</code>; suppressions documented with a reason, never silent</li>
-  <li>Lambda handler logic unit-tested with <code>moto</code>, independent of the CDK stack that deploys it</li>
+  <li>Lambda handler logic unit-tested with <code>aws-sdk-client-mock</code>, independent of the CDK stack that deploys it</li>
   <li>Bootstrap stack version kept current; deploy role permissions scoped, not <code>AdministratorAccess</code>, once past initial setup</li>
   <li>Stateful resources (RDS, DynamoDB) in a separate long-lived stack from fast-changing compute, to limit blast radius</li>
   <li>Secrets and DB passwords referenced from Secrets Manager / SSM Parameter Store at deploy time &mdash; never hard-coded in stack code</li>
@@ -523,7 +531,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
   <a href="https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html" target="_blank">Bootstrapping</a> &middot;
   <a href="https://docs.aws.amazon.com/cdk/v2/guide/testing.html" target="_blank">Testing constructs</a> &middot;
   <a href="https://github.com/cdklabs/cdk-nag" target="_blank">cdk-nag</a> &middot;
-  <a href="https://github.com/getmoto/moto" target="_blank">moto</a> &middot;
+  <a href="https://github.com/m-radzikowski/aws-sdk-client-mock" target="_blank">aws-sdk-client-mock</a> &middot;
   <a href="https://docs.localstack.cloud/user-guide/integrations/aws-cdk/" target="_blank">LocalStack + CDK</a> &middot;
   <a href="https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-local.html" target="_blank">SAM CLI local invoke</a>
 </footer>
