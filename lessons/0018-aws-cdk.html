@@ -398,6 +398,11 @@ test(<span class="str">'returns the profile for a known customer'</span>, <span 
 
 <h3>2. Invoke the real handler locally with SAM CLI</h3>
 
+<div class="callout info">
+  <strong>What SAM CLI actually is</strong>
+  The <strong>AWS Serverless Application Model CLI</strong> is a separate AWS tool, not part of CDK &mdash; its own install, its own command (<code>sam</code>), originally built to work with hand-written SAM/CloudFormation templates. The reason it shows up here: <code>sam local invoke</code> runs a Lambda in an actual Docker container matching the real Lambda runtime image, purely for <em>local testing</em> &mdash; it never deploys anything. And conveniently, it can read CDK's own synthesized output directly (any <code>cdk.out/*.template.json</code>), so you get real-container local testing without writing a separate SAM template or adopting SAM as your deploy tool. CDK still does all the actual deploying via <code>cdk deploy</code>; SAM CLI's only job in this lesson is running the Lambda locally.
+</div>
+
 <p>SAM CLI reads CDK's own synthesized output (it understands <code>cdk.out/</code> directly) and runs your Lambda in a Docker container using the actual runtime image &mdash; closer to production than <code>aws-sdk-client-mock</code>, because your code executes for real, just against a local or mocked endpoint.</p>
 
 <pre><span class="file-label">terminal</span>
