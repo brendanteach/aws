@@ -241,6 +241,48 @@ out = predictor.<span class="fn">predict</span>({
   Unlike Bedrock's per-token model, a real-time endpoint charges for every instance-hour it exists, busy or idle &mdash; a single <code>ml.g5.2xlarge</code> left running is real monthly money. Defences: prefer <strong>serverless inference</strong> for anything not constantly hit; set <strong>autoscaling</strong> (including scale-in) on real-time endpoints; use <strong>Managed Spot</strong> for training; and shut down Studio notebook instances when you leave. Put an alarm on endpoint <code>InvocationsPerInstance</code> so an idle endpoint gets noticed.
 </div>
 
+<h2>VPC mode &mdash; running SageMaker inside your network</h2>
+
+<p>By default, a training job's instances or a real-time endpoint's instances run on AWS-managed network infrastructure <em>outside</em> your VPC &mdash; not on the public internet, but not inside your own network boundary either. <strong>VPC mode</strong> puts them inside subnets you specify instead, with an ENI attached to each instance, the same isolation model as a VPC-attached Lambda (<a href="0021-lambda-local-dev-environments.html">Lesson 21</a>) or an ECS task (Lesson 2).</p>
+
+<table>
+  <thead><tr><th></th><th>Default (no VPC config)</th><th>VPC mode</th></tr></thead>
+  <tbody>
+    <tr><td>Where the instance runs</td><td>AWS-managed network infrastructure, outside your VPC</td><td>Inside subnets you specify, with an ENI attached to each instance</td></tr>
+    <tr><td>Reaching S3 / ECR</td><td>Over the public AWS network path</td><td>Over a VPC endpoint (Gateway endpoint for S3, Interface endpoint for others) &mdash; if network isolation is also on, never touches the public internet</td></tr>
+    <tr><td>Security groups</td><td>None you control</td><td>Your own security groups control exactly what the instance can talk to</td></tr>
+    <tr><td>Who can see the traffic</td><td>AWS's shared infrastructure</td><td>Only what your VPC's routing / SGs / NACLs allow</td></tr>
+  </tbody>
+</table>
+
+<p>You configure it identically for a training job or an endpoint &mdash; pass subnets and security groups when you create it:</p>
+
+<pre><span class="file-label">train.py — VPC mode + network isolation</span>
+est = <span class="cls">XGBoost</span>(
+    entry_point=<span class="str">"train.py"</span>,
+    <span class="cmt"># ... other args as before ...</span>
+    subnets=[<span class="str">"subnet-0a1b2c3d"</span>, <span class="str">"subnet-0e4f5a6b"</span>],   <span class="cmt"># your private subnets</span>
+    security_group_ids=[<span class="str">"sg-0123456789abcdef0"</span>],
+    enable_network_isolation=<span class="kw">True</span>,   <span class="cmt"># no internet route at all — AWS API calls go via VPC endpoints only</span>
+)</pre>
+
+<h3>The VPC endpoints checklist</h3>
+
+<p>Network isolation means the instance has zero internet route, so it can only reach an AWS API through a VPC endpoint you've provisioned for it. Miss one and the job fails trying to reach a service it has no path to. Provision endpoints for whatever the job/endpoint actually touches:</p>
+
+<ul class="checklist">
+  <li><strong>S3</strong> (Gateway endpoint) &mdash; training data in, model artifacts out</li>
+  <li><strong>ECR API + ECR DKR</strong> (Interface endpoints) &mdash; pulling the training/inference container image</li>
+  <li><strong>CloudWatch Logs</strong> (Interface endpoint) &mdash; job/endpoint logs, otherwise they silently fail to ship</li>
+  <li><strong>Secrets Manager / SSM</strong> (Interface endpoints) &mdash; if the job reads credentials or config from either</li>
+  <li><strong>sagemaker-runtime</strong> (Interface endpoint) &mdash; needed on <em>the caller's side</em> &mdash; e.g. a Lambda in the same VPC calling <code>invoke_endpoint</code> &mdash; not on the SageMaker side</li>
+</ul>
+
+<div class="callout warn">
+  <strong>VPC mode is not free &mdash; latency and setup cost</strong>
+  The ENI-attach step adds a small amount of startup latency, same trade-off as a VPC-attached Lambda cold start. And every AWS service the job or endpoint needs becomes a VPC endpoint you must provision and pay for (Interface endpoints bill per-hour + per-GB). Turn on network isolation deliberately, for the workloads where "this data cannot leave my network boundary" is a real requirement (Lesson 20's finance callouts below) &mdash; not as a default for every job.
+</div>
+
 <h2>Finance-context callouts</h2>
 
 <div class="callout finance">
@@ -255,7 +297,7 @@ out = predictor.<span class="fn">predict</span>({
 
 <div class="callout finance">
   <strong>Keep it in the VPC</strong>
-  Run training jobs and endpoints in <strong>VPC-only mode with network isolation</strong> &mdash; no internet route, traffic to S3 / ECR over VPC endpoints. Training data, model weights, and inference traffic never leave your account. Encrypt volumes and artifacts with a customer-managed KMS key.
+  Run training jobs and endpoints in <strong>VPC mode with network isolation</strong> (see above) &mdash; no internet route, traffic to S3 / ECR over VPC endpoints. Training data, model weights, and inference traffic never leave your account. Encrypt volumes and artifacts with a customer-managed KMS key.
 </div>
 
 <div class="callout finance">
