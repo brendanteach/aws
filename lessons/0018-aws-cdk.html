@@ -132,6 +132,27 @@
   Your TypeScript code <span class="arrow">&rarr;</span> <code>cdk synth</code> runs it <span class="arrow">&rarr;</span> CloudFormation template in <code>cdk.out/</code> <span class="arrow">&rarr;</span> assets (Lambda zips, Docker images) uploaded to the bootstrap bucket/ECR <span class="arrow">&rarr;</span> <code>cdk deploy</code> hands the template to CloudFormation <span class="arrow">&rarr;</span> CloudFormation creates / updates / deletes resources to match
 </div>
 
+<h3>CDK and Lambda are not the same thing</h3>
+
+<p>Worth stating plainly, because the two get used together constantly in this course: <strong>Lambda</strong> (<a href="0021-lambda-local-dev-environments.html">Lesson 21</a>) is a compute service &mdash; it actually runs your function code when an event fires, and it exists independently of how it was created. <strong>CDK</strong> is an infrastructure-as-code tool &mdash; you write code describing AWS resources, and CDK compiles it into a CloudFormation template that provisions them. A Lambda function is just one of the ~200+ resource types (alongside S3 buckets, DynamoDB tables, VPCs, ECS services&hellip;) that a CDK stack can declare.</p>
+
+<p>CDK doesn't run your Lambda, and Lambda doesn't need CDK to exist &mdash; the exact same function could be created via the Console, the CLI, Terraform, SAM, or raw CloudFormation. A CDK app can also deploy zero Lambdas at all. Treat them as two separate lessons on purpose: one is <em>how AWS runs your code</em>, the other is <em>how you declare and ship AWS resources</em>.</p>
+
+<h3>Where CDK actually lives</h3>
+
+<p>Three different places &mdash; and bootstrapping (below) only matters for the third one.</p>
+
+<table>
+  <thead><tr><th>Where</th><th>What's there</th><th>When it appears</th></tr></thead>
+  <tbody>
+    <tr><td>Your local repo</td><td>Your actual CDK source code (<code>.ts</code> files) &mdash; the real source of truth, tracked in git</td><td>Always &mdash; it's just code</td></tr>
+    <tr><td>Local <code>cdk.out/</code></td><td>The compiled CloudFormation template(s), produced by <code>cdk synth</code></td><td>Every <code>synth</code> &mdash; pure local compilation, no AWS contact at all</td></tr>
+    <tr><td>AWS (S3 + ECR + CloudFormation)</td><td>The deployed stack: assets in the bootstrap S3 bucket/ECR, the template and stack state in CloudFormation</td><td>Only on <code>cdk deploy</code></td></tr>
+  </tbody>
+</table>
+
+<p>So you do <strong>not</strong> need to bootstrap before you start developing. You can write a stack, run <code>cdk synth</code> repeatedly, and run unit/assertion tests all day with zero AWS account involvement. Bootstrap only becomes required the moment you run your <em>first</em> <code>cdk deploy</code> into a given account+region &mdash; see the callout further down for exactly what it creates and why.</p>
+
 <h3>Construct levels &mdash; L1, L2, L3</h3>
 
 <table>
