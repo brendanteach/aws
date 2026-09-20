@@ -327,6 +327,11 @@ test(<span class="str">'lambda cannot write the table'</span>, () => {
   <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong><code>cdk diff</code></strong> &mdash; the only one of the four that talks to AWS (read-only, to compare against the deployed stack). Run against staging before every prod deploy; treat any <code>[-/+]</code> replacement as blocking until explained.</p></div></div>
 </div>
 
+<div class="callout info">
+  <strong>What cdk-nag actually is</strong>
+  <code>cdk-nag</code> is a third-party (now AWS-labs-maintained) open-source npm/pip package &mdash; not a built-in CDK feature. Mechanically, it's a CDK <strong>Aspect</strong>: a visitor that CDK calls once for every construct in your app's tree during <code>synth</code>. Each rule pack (<code>AwsSolutionsChecks</code>, HIPAA, PCI-DSS, NIST 800-53&hellip;) is just a set of functions that inspect a construct's synthesized properties and raise an error if one violates the rule &mdash; an S3 bucket with no encryption, an IAM policy with a wildcard action, a log group with no retention set. Because it hooks into <code>synth</code> itself, a violation fails the build immediately, in the same place and at the same speed as any other synth error &mdash; no separate scan step, no extra CI job.
+</div>
+
 <pre><span class="file-label">bin/finapp-infra.ts — wiring cdk-nag in</span>
 <span class="kw">import</span> * <span class="kw">as</span> cdk <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
 <span class="kw">import</span> { AwsSolutionsChecks, NagSuppressions } <span class="kw">from</span> <span class="str">'cdk-nag'</span>;
