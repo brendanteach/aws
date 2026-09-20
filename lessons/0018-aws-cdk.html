@@ -182,6 +182,11 @@
   <code>cdk deploy</code> needs the bootstrap bucket to exist so it has somewhere to upload assets (Lambda zips, Docker images) before handing the template to CloudFormation. Skip it, and your first <code>cdk deploy</code> into a fresh account/region fails outright, telling you to bootstrap. It's a one-time setup per account+region &mdash; not per stack, not per deploy &mdash; so once it's done you never think about it again until AWS ships a newer bootstrap template version. <code>cdk synth</code>, by contrast, needs none of this: it never touches AWS at all (see below), so you can write and validate stacks long before you ever bootstrap anything.
 </div>
 
+<div class="callout info">
+  <strong>What <code>cdk bootstrap</code> actually does</strong>
+  It's not a special CDK-only mechanism &mdash; it deploys an ordinary CloudFormation stack named <code>CDKToolkit</code>, from a template AWS maintains and CDK ships with the CLI. That stack creates: an <strong>S3 bucket</strong> for assets, versioned and with a lifecycle rule to expire old versions; an <strong>ECR repository</strong> for container images; and four narrowly-scoped <strong>IAM roles</strong> that CloudFormation assumes during deploys instead of using your own credentials directly &mdash; a deploy role, a file-publishing role (writes to the S3 bucket), an image-publishing role (writes to ECR), and a lookup role (for <code>cdk diff</code> and context lookups). It also writes a bootstrap <strong>version number</strong> to an SSM parameter in that account/region, which every subsequent <code>cdk deploy</code> checks &mdash; that's how CDK knows to tell you to re-bootstrap after a CLI upgrade that needs newer toolkit infrastructure. Because it's just a stack, you can inspect it in the CloudFormation console like any other, and it shows up in <code>cdk diff</code>/<code>cdk destroy</code> like any other stack too (though destroying it will break every other CDK-deployed stack in that account/region).
+</div>
+
 <h3>Project layout after <code>cdk init</code></h3>
 
 <pre><span class="file-label">finapp-infra/</span>
@@ -483,9 +488,11 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
     <tr><td>Every commit (local/CI)</td><td><code>cdk-nag</code> (AwsSolutions pack) during <code>synth</code></td><td>No</td><td>Compliance violations &mdash; public buckets, wildcard IAM, missing log retention</td></tr>
     <tr><td>Optional, before pushing</td><td><code>cdklocal deploy</code> + an integration test suite against LocalStack</td><td>No (emulated)</td><td>Real wiring bugs between resources &mdash; wrong table name, broken grant, malformed event &mdash; cheaply, before spending a real deploy</td></tr>
     <tr><td>On merge to main</td><td><code>cdk diff</code> (posted for review) &rarr; <code>cdk deploy</code> to a <strong>DEV</strong> account, then smoke/integration tests against the real deployed resources</td><td><strong>Yes</strong></td><td>The 10% LocalStack can't catch: real IAM enforcement, real latency, real service quirks</td></tr>
-    <tr><td>On DEV sign-off</td><td>Promote the <strong>same built artifact</strong> (never rebuild) with <code>cdk deploy -c env=qa</code> to a separate <strong>QA</strong> account, <code>cdk diff</code> reviewed again</td><td><strong>Yes</strong></td><td>Environment-specific config drift, anything DEV's smaller scale didn't surface</td></tr>
+    <tr><td>On DEV sign-off</td><td>Promote the <strong>same built artifact</strong> (never rebuild) with <code>cdk deploy AgentTools-qa</code> to a separate <strong>QA</strong> account, <code>cdk diff</code> reviewed again</td><td><strong>Yes</strong></td><td>Environment-specific config drift, anything DEV's smaller scale didn't surface</td></tr>
   </tbody>
 </table>
+
+<p class="note" style="margin-top:-1.2rem; margin-bottom:1.8rem;">(This lesson's <code>bin/finapp-infra.ts</code> above names each environment's stack explicitly &mdash; <code>AgentTools-staging</code>, <code>AgentTools-prod</code> &mdash; so you'd deploy DEV/QA the same way, by stack name. If you instead read the environment from context, the equivalent command is <code>cdk deploy -c env=qa</code>, the pattern <a href="0021-lambda-local-dev-environments.html">Lesson 21</a>'s <code>LambdaGroupStack</code> uses. Either is fine; just be consistent within one app.)</p>
 
 <div class="callout cdk">
   <strong>Ephemeral per-PR stacks in DEV</strong>
