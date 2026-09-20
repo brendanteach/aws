@@ -160,6 +160,16 @@ Event source (API Gateway, SQS, EventBridge, S3, direct SDK call&hellip;)
 
 <h3>Layer 1 &amp; 2 &mdash; no Docker, no AWS, milliseconds</h3>
 
+<p>This is a genuine unit test of your handler's business logic &mdash; no Lambda runtime, no Docker, no SAM, no LocalStack, no AWS account. You call the handler like any other function, and a mocking library intercepts whatever AWS SDK calls it makes, in-process.</p>
+
+<table>
+  <thead><tr><th>Language</th><th>Test runner</th><th>AWS-mocking library</th></tr></thead>
+  <tbody>
+    <tr><td>TypeScript</td><td><strong>Jest</strong></td><td><code>aws-sdk-client-mock</code> &mdash; mocks the AWS SDK v3 client</td></tr>
+    <tr><td>Python</td><td><strong>pytest</strong></td><td><code>moto</code> &mdash; mocks the boto3 API surface</td></tr>
+  </tbody>
+</table>
+
 <pre><span class="file-label">index.ts — the handler</span>
 <span class="kw">import</span> { DynamoDBClient } <span class="kw">from</span> <span class="str">'@aws-sdk/client-dynamodb'</span>;
 <span class="kw">import</span> { DynamoDBDocumentClient, GetCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/lib-dynamodb'</span>;
@@ -195,6 +205,40 @@ test(<span class="str">'returns the profile for a known customer'</span>, <span 
 });</pre>
 
 <p>Set a breakpoint in <code>index.ts</code> and run this test under your normal debugger (VS Code's built-in &ldquo;Debug Jest Tests&rdquo; / the Jest extension) &mdash; this covers the majority of Lambda debugging, since most bugs are in your business logic, not in AWS's runtime plumbing.</p>
+
+<p>The Python equivalent (Lessons 10 and 16's handlers) is the same shape, just with <code>pytest</code> + <code>moto</code>:</p>
+
+<pre><span class="file-label">handler.py</span>
+<span class="kw">import</span> os, boto3
+
+ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>)   <span class="cmt"># module scope — reused across warm invocations</span>
+
+<span class="kw">def</span> <span class="fn">lambda_handler</span>(event, context):
+    table = ddb.<span class="fn">Table</span>(os.environ[<span class="str">"TABLE_NAME"</span>])
+    resp = table.<span class="fn">get_item</span>(Key={<span class="str">"pk"</span>: <span class="str">f"CUST#{event['customer_id']}"</span>})
+    <span class="kw">return</span> resp.<span class="fn">get</span>(<span class="str">"Item"</span>)</pre>
+
+<pre><span class="file-label">test_handler.py</span>
+<span class="kw">import</span> os, boto3, pytest
+<span class="kw">from</span> moto <span class="kw">import</span> mock_aws
+<span class="kw">from</span> handler <span class="kw">import</span> lambda_handler
+
+<span class="fn">@mock_aws</span>
+<span class="kw">def</span> <span class="fn">test_returns_profile_for_known_customer</span>():
+    os.environ[<span class="str">"TABLE_NAME"</span>] = <span class="str">"Customers"</span>
+    ddb = boto3.<span class="fn">resource</span>(<span class="str">"dynamodb"</span>, region_name=<span class="str">"us-east-1"</span>)
+    table = ddb.<span class="fn">create_table</span>(
+        TableName=<span class="str">"Customers"</span>,
+        KeySchema=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"KeyType"</span>: <span class="str">"HASH"</span>}],
+        AttributeDefinitions=[{<span class="str">"AttributeName"</span>: <span class="str">"pk"</span>, <span class="str">"AttributeType"</span>: <span class="str">"S"</span>}],
+        BillingMode=<span class="str">"PAY_PER_REQUEST"</span>,
+    )
+    table.<span class="fn">put_item</span>(Item={<span class="str">"pk"</span>: <span class="str">"CUST#1"</span>, <span class="str">"name"</span>: <span class="str">"Ada"</span>})
+
+    <span class="cmt"># No SAM, no Docker, no network — this is just calling a Python function</span>
+    result = <span class="fn">lambda_handler</span>({<span class="str">"customer_id"</span>: <span class="str">"1"</span>}, <span class="kw">None</span>)
+
+    <span class="kw">assert</span> result[<span class="str">"name"</span>] == <span class="str">"Ada"</span></pre>
 
 <h3>Layer 3 &amp; 4 &mdash; run the real handler in a real container, attach a debugger</h3>
 
