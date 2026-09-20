@@ -279,7 +279,17 @@ app.<span class="fn">synth</span>();</pre>
 
 <h2>Testing infrastructure</h2>
 
-<p>Because it's code, you can unit-test the synthesized template with assertions &mdash; catch a missing encryption flag or an over-broad policy before it ships.</p>
+<p>Because it's code, you can unit-test the synthesized template with assertions &mdash; catch a missing encryption flag or an over-broad policy before it ships. This is a different kind of test than unit-testing a Lambda handler (<a href="0021-lambda-local-dev-environments.html">Lesson 21</a>): there's nothing to mock here, because a CDK stack makes no AWS calls of its own &mdash; you're asserting on the <em>template it produces</em>, not on any runtime behavior.</p>
+
+<table>
+  <thead><tr><th>Language</th><th>Test runner</th><th>Assertion library</th></tr></thead>
+  <tbody>
+    <tr><td>TypeScript</td><td><strong>Jest</strong> (scaffolded automatically by <code>cdk init --language typescript</code>)</td><td><code>aws-cdk-lib/assertions</code> &mdash; the <code>Template</code> class</td></tr>
+    <tr><td>Python</td><td><strong>pytest</strong></td><td><code>aws_cdk.assertions</code> &mdash; the same <code>Template</code> class, Python API</td></tr>
+  </tbody>
+</table>
+
+<p>Either way, you instantiate the stack in-memory and call <code>Template.fromStack(...)</code>, which does its own in-process synth of just that stack &mdash; no CLI, no AWS account, no network. Then you assert on the resulting template: does this resource exist, does it have this property, is this policy scoped the way you expect.</p>
 
 <div class="callout warn">
   <strong><code>cdk synth</code> does not run your tests</strong>
