@@ -328,6 +328,11 @@ test(<span class="str">'lambda cannot write the table'</span>, () => {
 </div>
 
 <div class="callout info">
+  <strong>What <code>cdk diff</code> actually does</strong>
+  It's a <strong>template-to-template</strong> comparison, not a live-resource scan: <code>cdk diff</code> synths your code locally, fetches the <em>currently deployed CloudFormation template</em> for that named stack (one read-only API call), and diffs the two resource-by-resource &mdash; additions, removals, property changes, and replacements. It reads the deployed template, never any actual resource's live state, so it will not notice if someone hand-edited a resource in the Console outside of CloudFormation (that's a different feature, CloudFormation's own <strong>drift detection</strong>). The output uses CloudFormation's own change-set symbols: <code>[+]</code> add, <code>[-]</code> remove, <code>[~]</code> modify in place, and the one to stop on, <code>[-/+]</code> &mdash; a replacement, where CloudFormation destroys the resource and creates a new one because an immutable property changed.
+</div>
+
+<div class="callout info">
   <strong>What cdk-nag actually is</strong>
   <code>cdk-nag</code> is a third-party (now AWS-labs-maintained) open-source npm/pip package &mdash; not a built-in CDK feature. Mechanically, it's a CDK <strong>Aspect</strong>: a visitor that CDK calls once for every construct in your app's tree during <code>synth</code>. Each rule pack (<code>AwsSolutionsChecks</code>, HIPAA, PCI-DSS, NIST 800-53&hellip;) is just a set of functions that inspect a construct's synthesized properties and raise an error if one violates the rule &mdash; an S3 bucket with no encryption, an IAM policy with a wildcard action, a log group with no retention set. Because it hooks into <code>synth</code> itself, a violation fails the build immediately, in the same place and at the same speed as any other synth error &mdash; no separate scan step, no extra CI job.
 </div>
