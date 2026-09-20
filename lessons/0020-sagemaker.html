@@ -202,6 +202,69 @@ resp = rt.<span class="fn">invoke_endpoint</span>(
 )
 p_fraud = json.<span class="fn">loads</span>(resp[<span class="str">"Body"</span>].<span class="fn">read</span>())</pre>
 
+<h2>SageMaker as a decision engine &mdash; calling it from Lambda</h2>
+
+<p>SageMaker itself isn't a rule engine in the if-then sense &mdash; the endpoint just returns a score or classification. The actual rules (thresholds, routing, what counts as &ldquo;block&rdquo; vs &ldquo;review&rdquo;) live in the <strong>Lambda</strong> wrapped around it, the same tool-Lambda shape as <a href="0016-lambda-bedrock-agent-tools.html">Lesson 16</a> and the async-job Lambdas in <a href="0010-sqs-lambda.html">Lesson 10</a>.</p>
+
+<div class="flow">
+  <div class="ftitle">Architecture</div>
+Event source (API Gateway, SQS, EventBridge, direct app call)
+  <span class="arrow">&rarr;</span> <strong>Lambda</strong> &mdash; the actual decision engine
+       <span class="arrow">&rarr;</span> cheap static rules first, no ML needed: amount thresholds, blocklists, velocity checks from DynamoDB
+       <span class="arrow">&rarr;</span> ambiguous case? <code>sagemaker-runtime.invoke_endpoint()</code>
+            <span class="arrow">&rarr;</span> SageMaker real-time / serverless endpoint runs the trained model
+            <span class="arrow">&larr;</span> returns a score/probability
+       <span class="arrow">&rarr;</span> Lambda applies the decision rule on top of the score
+            (score &gt; 0.8 &rarr; block, 0.4&ndash;0.8 &rarr; review, &lt; 0.4 &rarr; allow)
+  <span class="arrow">&rarr;</span> response to caller / decision written to DynamoDB / published to SNS
+</div>
+
+<h3>Setup steps</h3>
+
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body"><p><strong>Train and deploy the model</strong> &mdash; Track A above (<code>fit</code> &rarr; <code>deploy</code>). Prefer serverless inference unless volume is steady and high (see the cost-trap callout below).</p></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><p><strong>Scope the Lambda's execution role narrowly</strong> &mdash; <code>sagemaker:InvokeEndpoint</code> on the specific endpoint ARN only, never <code>sagemaker:*</code> or access to other endpoints.</p></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><p><strong>If the endpoint runs in VPC mode</strong> (previous section), put the Lambda in the same VPC/subnets and add a VPC interface endpoint for <code>sagemaker-runtime</code> &mdash; without it a VPC-attached Lambda has no route to the SageMaker API at all.</p></div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body"><p><strong>Set the Lambda timeout above the endpoint's p99 latency</strong> &mdash; a serverless SageMaker endpoint can cold-start for a few seconds; size the Lambda (and any upstream API Gateway) timeout with margin, same principle as <a href="0021-lambda-local-dev-environments.html">Lesson 21</a>'s timeout guidance.</p></div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body"><p><strong>Handle throttling and cold starts explicitly</strong> &mdash; wrap <code>invoke_endpoint</code> in a retry (boto3's adaptive retry mode) with a fallback rule path (e.g. route to manual review) if the endpoint is unavailable, instead of failing the whole request.</p></div></div>
+  <div class="step"><div class="step-num">6</div><div class="step-body"><p><strong>Wire CloudWatch alarms</strong> on the endpoint's <code>Invocation4XXErrors</code>/<code>Invocation5XXErrors</code> and the Lambda's own <code>Errors</code>/<code>Duration</code> &mdash; an endpoint failing silently is a fraud-control gap, not just a bug.</p></div></div>
+</div>
+
+<pre><span class="file-label">lambda_handler.py — the rule engine</span>
+<span class="kw">import</span> boto3, json, os
+
+rt = boto3.<span class="fn">client</span>(<span class="str">"sagemaker-runtime"</span>)
+ENDPOINT = os.environ[<span class="str">"ENDPOINT_NAME"</span>]
+
+<span class="kw">def</span> <span class="fn">lambda_handler</span>(event, context):
+    txn = event[<span class="str">"transaction"</span>]
+
+    <span class="cmt"># cheap static rules first — no model call needed</span>
+    <span class="kw">if</span> txn[<span class="str">"amount"</span>] &gt; <span class="num">50_000</span>:
+        <span class="kw">return</span> {<span class="str">"decision"</span>: <span class="str">"review"</span>, <span class="str">"reason"</span>: <span class="str">"amount_threshold"</span>}
+    <span class="kw">if</span> txn[<span class="str">"account_id"</span>] <span class="kw">in</span> <span class="fn">get_blocklist</span>():
+        <span class="kw">return</span> {<span class="str">"decision"</span>: <span class="str">"block"</span>, <span class="str">"reason"</span>: <span class="str">"blocklisted_account"</span>}
+
+    <span class="cmt"># ambiguous case — ask the model</span>
+    resp = rt.<span class="fn">invoke_endpoint</span>(
+        EndpointName=ENDPOINT,
+        ContentType=<span class="str">"application/json"</span>,
+        Body=json.<span class="fn">dumps</span>({<span class="str">"instances"</span>: [<span class="fn">build_features</span>(txn)]}),
+    )
+    p_fraud = json.<span class="fn">loads</span>(resp[<span class="str">"Body"</span>].<span class="fn">read</span>())[<span class="num">0</span>]
+
+    <span class="cmt"># the actual rule engine lives here, not in SageMaker</span>
+    <span class="kw">if</span> p_fraud &gt; <span class="num">0.8</span>:
+        <span class="kw">return</span> {<span class="str">"decision"</span>: <span class="str">"block"</span>, <span class="str">"reason"</span>: <span class="str">"model_score"</span>, <span class="str">"score"</span>: p_fraud}
+    <span class="kw">if</span> p_fraud &gt; <span class="num">0.4</span>:
+        <span class="kw">return</span> {<span class="str">"decision"</span>: <span class="str">"review"</span>, <span class="str">"reason"</span>: <span class="str">"model_score"</span>, <span class="str">"score"</span>: p_fraud}
+    <span class="kw">return</span> {<span class="str">"decision"</span>: <span class="str">"allow"</span>, <span class="str">"score"</span>: p_fraud}</pre>
+
+<div class="callout sm">
+  <strong>Cheap rules before the model call, every time</strong>
+  Static checks (amount thresholds, blocklists, velocity limits) cost nothing and run in microseconds &mdash; put them first so the majority of transactions never need an endpoint invocation at all. Reserve the model call for genuinely ambiguous cases. This also caps your endpoint invocation volume, which caps both latency exposure and cost.
+</div>
+
 <h2>How to use it &mdash; track B: host or fine-tune an LLM</h2>
 
 <p>When you need a <em>specific</em> open-weight model, or a fine-tune on data that can't go to a third-party API, JumpStart deploys it to your own endpoint in a couple of lines.</p>
@@ -317,6 +380,7 @@ est = <span class="cls">XGBoost</span>(
   <li>Model Monitor schedules active with CloudWatch alarms on drift</li>
   <li>Training/deploy wrapped in a SageMaker Pipeline so runs are repeatable and lineage is tracked</li>
   <li>Endpoint IAM scoped; CloudTrail on for the full train&rarr;register&rarr;deploy&rarr;invoke audit trail</li>
+  <li>Cheap static rules (thresholds, blocklists) run in the calling Lambda before any endpoint invocation; retries/fallback handle endpoint throttling instead of failing the whole request</li>
 </ul>
 
 <!-- QUIZ -->
