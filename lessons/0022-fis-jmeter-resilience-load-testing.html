@@ -123,6 +123,22 @@
   </tbody>
 </table>
 
+<h3>What &ldquo;stop right away&rdquo; and &ldquo;rollback&rdquo; actually mean</h3>
+
+<p>Two questions worth being precise about, because the terms are easy to over-read.</p>
+
+<p><strong>Does it stop instantly?</strong> No &mdash; FIS <em>polls</em> the stop-condition alarm's state, and reacts the moment it sees <code>ALARM</code>. Two latency layers stack on top of each other before that happens: the alarm's own evaluation period (a CloudWatch alarm needs N consecutive breaching data points, e.g. 2 &times; 60s periods = up to 2 minutes, before it flips to <code>ALARM</code> at all), and then FIS's own check interval, typically under a minute, before it transitions the experiment to <code>stopping</code>. In practice that's low single-digit minutes from when the real degradation started &mdash; a safety net, not a substitute for a human watching a live dashboard during the first run of any new experiment.</p>
+
+<p><strong>What does &ldquo;rollback&rdquo; mean here?</strong> Not the same thing as a CloudFormation rollback (which recreates infrastructure to match a previous template). It depends on the action:</p>
+
+<table>
+  <thead><tr><th>Action type</th><th>What "stopping" does</th></tr></thead>
+  <tbody>
+    <tr><td>Ongoing-effect actions (network latency via <code>tc</code>, an SSM CPU-stress document, a connectivity-disruption rule)</td><td>FIS runs the action's built-in <strong>cleanup step</strong> &mdash; removes the <code>tc netem</code> rule, kills the <code>stress-ng</code> process &mdash; genuinely reversing the injected condition</td></tr>
+    <tr><td>One-shot/terminal actions (<code>aws:ecs:stop-task</code>, <code>aws:ec2:terminate-instances</code>)</td><td>Nothing to undo &mdash; the task/instance is already gone. FIS just stops injecting <em>further</em> faults; recovery from the one already injected is your own infrastructure's job (ECS replacing the task, an ASG replacing the instance) &mdash; which is the entire point of running the test</td></tr>
+  </tbody>
+</table>
+
 <h3>Sample experiment: kill a random ECS task and watch it self-heal</h3>
 
 <pre><span class="file-label">fis-ecs-task-stop.json</span>
@@ -236,6 +252,21 @@ jmeter -n -t trade-api-loadtest.jmx \
 4. Let JMeter keep running after the experiment ends — measure time-to-recovery, not just impact
 5. Record: peak error rate, p99 latency during the fault, time to full recovery — this becomes your resilience baseline for next quarter's game day
 </div>
+
+<h3>Giving an AI agent machine access to the alarm and logs</h3>
+
+<p>Step 5 above &mdash; reading a dashboard, correlating an alarm with logs, writing up what happened &mdash; is exactly the kind of task a Bedrock agent (Lesson 16) can do programmatically instead of manually, using the same tool-Lambda pattern as any other agent tool. There's no special FIS integration needed; a CloudWatch alarm's state change is available to code through several standard paths:</p>
+
+<table>
+  <thead><tr><th>Path</th><th>How it works</th></tr></thead>
+  <tbody>
+    <tr><td><strong>EventBridge</strong></td><td>Every alarm state change is automatically emitted as a <code>CloudWatch Alarm State Change</code> event on the default bus &mdash; an EventBridge rule routes it straight to a Lambda, Step Function, or queue, no SNS subscription required</td></tr>
+    <tr><td><strong>SNS &rarr; Lambda</strong></td><td>The alarm action publishes to an SNS topic; a Lambda subscriber receives the JSON payload (<code>AlarmName</code>, <code>NewStateValue</code>, <code>NewStateReason</code>, the triggering metric)</td></tr>
+    <tr><td><strong>Direct API calls</strong></td><td><code>cloudwatch:DescribeAlarms</code> / <code>DescribeAlarmHistory</code> for alarm state and history; <code>logs:StartQuery</code> + <code>GetQueryResults</code> (CloudWatch Logs Insights) to query raw logs programmatically</td></tr>
+  </tbody>
+</table>
+
+<p>Wire these as Lambda tools behind a Bedrock agent, and the agent can read the alarm that stopped the experiment, pull the relevant log group's entries from the affected window, and summarize what actually happened &mdash; turning the manual &ldquo;someone reads the dashboard&rdquo; step in a game day into something automated, while the human still owns the final call on what the result means.</p>
 
 <h2>Production checklist</h2>
 <ul class="checklist">
