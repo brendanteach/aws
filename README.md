@@ -1,4 +1,4 @@
-# AWS Architecture — 12 Core + 11 Bonus Lessons
+# AWS Architecture — 12 Core + 12 Bonus Lessons
 
 A self-paced curriculum for building a production-grade financial web app on AWS. Taught by analogy to Azure — if you know Azure, this series maps every concept to what you already understand.
 
@@ -42,6 +42,7 @@ Cognito (auth) · Secrets Manager · CloudWatch · X-Ray
 | 21 | [Lambda — Local Dev & Environments](lessons/0021-lambda-local-dev-environments.html) | Execution model, cold/warm starts, layers, testing without AWS (moto, SAM local, RIE, LocalStack), grouping Lambdas across QA/UAT/prod |
 | 22 | [AWS FIS & JMeter](lessons/0022-fis-jmeter-resilience-load-testing.html) | Chaos-engineering experiment templates & stop conditions, headless JMeter load tests at scale, combining both in a staging game day |
 | 23 | [AWS Resilience Hub](lessons/0023-resilience-hub.html) | RTO/RPO resiliency policies, scored assessments against real deployed resources, drift detection, generating FIS experiments & alarms |
+| 24 | [EventBridge, SNS & Direct API Polling](lessons/0024-eventbridge-sns-api-polling.html) | Push vs push-fan-out vs pull for reacting to AWS events, with Node.js/TypeScript code for all three and a CloudWatch-alarm-to-agent walkthrough |
 
 Each lesson includes:
 - Azure analogies for every concept

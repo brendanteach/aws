@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 24 — EventBridge, SNS → Lambda, and Direct API Polling</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #555; --light: #f5f4f0; --border: #ddd;
+    --accent: #c0392b; --aws-orange: #FF9900; --azure-blue: #0078D4;
+    --green: #27ae60; --purple: #7d3c98; --eb: #8c4fff; --sns: #e7157b; --api: #0d9488;
+    --code-bg: #f8f7f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Georgia", serif; font-size: 17px; line-height: 1.7; color: var(--ink); background: #fafaf8; padding: 0 1rem; }
+  article { max-width: 740px; margin: 3rem auto 6rem; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; }
+  .lesson-number { font-family: monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+  h1 { font-size: 1.9rem; font-weight: normal; line-height: 1.25; margin-bottom: 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; font-size: 1rem; }
+  h2 { font-size: 1.2rem; font-weight: bold; margin: 2.5rem 0 0.8rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: bold; margin: 1.4rem 0 0.4rem; }
+  p  { margin-bottom: 1rem; }
+  a  { color: var(--accent); }
+  code { font-family: monospace; font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+  pre { background: #1e1e1e; color: #d4d4d4; border-radius: 5px; padding: 1.1rem 1.3rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.65; overflow-x: auto; }
+  .file-label { display: block; font-family: sans-serif; font-size: 0.68rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: #FF9900; background: #2a2a2a; padding: 0.3rem 1.3rem; margin: 1.2rem -1.3rem -0.8rem; border-bottom: 1px solid #333; border-radius: 5px 5px 0 0; }
+  .key { color: #9cdcfe; } .str { color: #ce9178; } .num { color: #b5cea8; } .cmt { color: #6a9955; } .kw { color: #569cd6; } .fn { color: #dcdcaa; } .cls { color: #4ec9b0; } .dim { color: #888; }
+
+  .callout { border-radius: 4px; padding: 1rem 1.2rem; margin: 1.5rem 0; font-size: 0.93rem; }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  .callout.warn    { background: #fff8e6; border: 1px solid #f0c040; border-left: 4px solid var(--aws-orange); }
+  .callout.finance { background: #eaf4ea; border: 1px solid #a9d5a9; border-left: 4px solid var(--green); }
+  .callout.info    { background: #eaf0fb; border: 1px solid #a9c0eb; border-left: 4px solid var(--azure-blue); }
+  .callout.danger  { background: #fdecea; border: 1px solid #f5c6c6; border-left: 4px solid var(--accent); }
+  .callout.eb      { background: #f4eefe; border: 1px solid #d7c2fb; border-left: 4px solid var(--eb); }
+  .callout.sns     { background: #fdeef4; border: 1px solid #f3b8d2; border-left: 4px solid var(--sns); }
+  .callout.api     { background: #e8f6f4; border: 1px solid #a9ddd6; border-left: 4px solid var(--api); }
+
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-left: 4px solid var(--eb); border-radius: 4px; padding: 1rem 1.2rem; margin: 1.2rem 0; font-family: monospace; font-size: 0.8rem; line-height: 1.9; }
+  .flow .ftitle { font-family: sans-serif; font-size: 0.72rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+  .arrow { color: var(--eb); }
+
+  .steps { counter-reset: step; margin: 1rem 0 1.5rem; }
+  .step { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: 0 0.8rem; margin-bottom: 1.2rem; align-items: start; }
+  .step-num { width: 2rem; height: 2rem; background: var(--ink); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: sans-serif; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+  .step-body { padding-top: 0.1rem; }
+  .step-body p { margin-bottom: 0.4rem; font-size: 0.92rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.2rem 0 1.8rem; font-size: 0.9rem; }
+  thead tr { background: var(--ink); color: white; }
+  th { padding: 0.6rem 0.9rem; text-align: left; font-family: sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--light); }
+  .azure { color: var(--azure-blue); font-weight: bold; }
+  .aws   { color: var(--aws-orange); font-weight: bold; }
+  .eb-c  { color: var(--eb); font-weight: bold; }
+  .sns-c { color: var(--sns); font-weight: bold; }
+  .api-c { color: var(--api); font-weight: bold; }
+  .note  { color: var(--muted); font-size: 0.85rem; }
+
+  .checklist { list-style: none; margin: 0.5rem 0 1.2rem; }
+  .checklist li { padding: 0.3rem 0 0.3rem 1.6rem; position: relative; font-size: 0.93rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+
+  .quiz { background: var(--light); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; margin: 2.5rem 0; }
+  .quiz h2 { border: none; margin-top: 0; }
+  .question { margin-bottom: 1.8rem; }
+  .question p { font-weight: bold; margin-bottom: 0.6rem; }
+  .options label { display: block; padding: 0.45rem 0.7rem; margin: 0.25rem 0; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 0.93rem; transition: background 0.15s; }
+  .options label:hover { background: #f0eee8; }
+  .options input[type=radio] { margin-right: 0.5rem; }
+  .feedback { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 3px; font-size: 0.88rem; display: none; }
+  .feedback.correct { background: #d4edda; color: #155724; display: block; }
+  .feedback.wrong   { background: #f8d7da; color: #721c24; display: block; }
+  .check-btn { margin-top: 0.5rem; padding: 0.4rem 1rem; background: var(--ink); color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.88rem; font-family: sans-serif; }
+  .check-btn:hover { background: #333; }
+
+  .lesson-nav { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--border); font-family: sans-serif; font-size: 0.85rem; color: var(--muted); }
+  .lesson-nav a { color: var(--accent); text-decoration: none; }
+  .lesson-nav a:hover { text-decoration: underline; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); font-family: sans-serif; }
+</style>
+</head>
+<body>
+<article>
+
+<header>
+  <div class="lesson-number">Lesson 24 &middot; Event-Driven Architecture</div>
+  <h1>EventBridge, SNS &rarr; Lambda, and Direct API Polling</h1>
+  <div class="subtitle">Three different ways code finds out that something happened in AWS &mdash; and when to reach for each one, with working Node.js/TypeScript for all three.</div>
+</header>
+
+<p><a href="0022-fis-jmeter-resilience-load-testing.html">Lesson 22</a> named three paths for getting a CloudWatch alarm's state to a Lambda (or an AI agent's tool): EventBridge, SNS, and direct API calls. This lesson is the deep dive &mdash; what each one actually is, how to wire it up, and working code for all three, using the same &ldquo;an agent needs to read the alarm that just fired&rdquo; scenario throughout so you can compare them directly.</p>
+
+<h2>The three paths, at a glance</h2>
+
+<table>
+  <thead><tr><th></th><th class="eb-c">EventBridge</th><th class="sns-c">SNS &rarr; Lambda</th><th class="api-c">Direct API call</th></tr></thead>
+  <tbody>
+    <tr><td>Model</td><td>Push, pattern-matched</td><td>Push, fan-out</td><td>Pull, on demand</td></tr>
+    <tr><td>Who calls whom</td><td>AWS service emits an event; a rule routes it</td><td>AWS service (or your code) publishes; every subscriber gets a copy</td><td>Your code asks AWS a question, right now</td></tr>
+    <tr><td>Filtering</td><td>Rich JSON pattern matching, no code needed</td><td>Coarse (subscription filter policies) or none &mdash; usually all-or-nothing per topic</td><td>Whatever your query/filter logic does</td></tr>
+    <tr><td>Fan-out to many targets</td><td>Yes &mdash; one rule, many targets</td><td>Yes &mdash; one topic, many subscribers</td><td>N/A &mdash; you're pulling, not broadcasting</td></tr>
+    <tr><td>Latency</td><td>Seconds, event-driven</td><td>Seconds, event-driven</td><td>Whatever your poll interval is</td></tr>
+    <tr><td>Best for</td><td>Routing AWS-native events (alarm state changes, deployment events, scheduled triggers) to the right target without a topic in between</td><td>Fan-out from one publisher to many independent consumers, including non-AWS endpoints (email, SMS, HTTP webhooks)</td><td>An agent or script asking &ldquo;what's the current state?&rdquo; on its own schedule, not reacting to a push</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <strong>Azure anchor</strong>
+  EventBridge &asymp; <span class="azure">Azure Event Grid</span> (pattern-matched event routing). SNS &asymp; <span class="azure">Azure Service Bus Topics</span> (or Event Grid's push model, depending on which SNS feature you're using). Direct API polling has no special Azure name &mdash; it's just calling the <span class="azure">Azure Monitor</span> REST API on your own schedule, same idea as calling <code>DescribeAlarms</code>.
+</div>
+
+<h2>1. EventBridge &mdash; pattern-matched event routing</h2>
+
+<p><strong>Amazon EventBridge</strong> is a serverless event bus. AWS services emit events onto it automatically &mdash; a CloudWatch alarm changing state, an ECS task stopping, an S3 object being created &mdash; and you write <strong>rules</strong> that match a JSON pattern against those events and route matches to <strong>targets</strong> (Lambda, SQS, Step Functions, another event bus). No topic to create, no publish call to make &mdash; the event already exists the moment the underlying thing happens.</p>
+
+<h3>What a CloudWatch Alarm State Change event looks like</h3>
+
+<pre><span class="file-label">the actual event EventBridge delivers</span>
+{
+  <span class="key">"source"</span>: <span class="str">"aws.cloudwatch"</span>,
+  <span class="key">"detail-type"</span>: <span class="str">"CloudWatch Alarm State Change"</span>,
+  <span class="key">"detail"</span>: {
+    <span class="key">"alarmName"</span>: <span class="str">"finapp-api-5xx-rate-high"</span>,
+    <span class="key">"state"</span>: { <span class="key">"value"</span>: <span class="str">"ALARM"</span>, <span class="key">"reason"</span>: <span class="str">"Threshold Crossed"</span> },
+    <span class="key">"previousState"</span>: { <span class="key">"value"</span>: <span class="str">"OK"</span> },
+    <span class="key">"configuration"</span>: { <span class="key">"metrics"</span>: [ <span class="cmt">/* the metric that tripped it */</span> ] }
+  }
+}</pre>
+
+<h3>Setting up a rule &rarr; Lambda target (CDK, TypeScript)</h3>
+
+<pre><span class="file-label">lib/alarm-routing-stack.ts</span>
+<span class="kw">import</span> { Stack, StackProps, Duration } <span class="kw">from</span> <span class="str">'aws-cdk-lib'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> events <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-events'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> targets <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-events-targets'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> lambda <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-lambda'</span>;
+<span class="kw">import</span> { Construct } <span class="kw">from</span> <span class="str">'constructs'</span>;
+
+<span class="kw">export class</span> <span class="cls">AlarmRoutingStack</span> <span class="kw">extends</span> Stack {
+  <span class="fn">constructor</span>(scope: Construct, id: <span class="cls">string</span>, props?: StackProps) {
+    <span class="fn">super</span>(scope, id, props);
+
+    <span class="kw">const</span> fn = <span class="kw">new</span> lambda.<span class="cls">Function</span>(<span class="kw">this</span>, <span class="str">'HandleAlarmEvent'</span>, {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: <span class="str">'index.handler'</span>,
+      code: lambda.Code.<span class="fn">fromAsset</span>(<span class="str">'lambda/handle-alarm-event'</span>),
+      timeout: Duration.<span class="fn">seconds</span>(<span class="num">10</span>),
+    });
+
+    <span class="cmt">// Match only ALARM-state transitions for this specific alarm — filtering with no code</span>
+    <span class="kw">new</span> events.<span class="cls">Rule</span>(<span class="kw">this</span>, <span class="str">'OnFinappApiAlarm'</span>, {
+      eventPattern: {
+        source: [<span class="str">'aws.cloudwatch'</span>],
+        detailType: [<span class="str">'CloudWatch Alarm State Change'</span>],
+        detail: {
+          alarmName: [<span class="str">'finapp-api-5xx-rate-high'</span>],
+          state: { value: [<span class="str">'ALARM'</span>] },
+        },
+      },
+      targets: [<span class="kw">new</span> targets.<span class="cls">LambdaFunction</span>(fn)],
+    });
+  }
+}</pre>
+
+<pre><span class="file-label">lambda/handle-alarm-event/index.ts</span>
+<span class="kw">interface</span> <span class="cls">AlarmEvent</span> {
+  detail: { alarmName: <span class="cls">string</span>; state: { value: <span class="cls">string</span>; reason: <span class="cls">string</span> } };
+}
+
+<span class="kw">export const</span> <span class="fn">handler</span> = <span class="kw">async</span> (event: <span class="cls">AlarmEvent</span>) => {
+  <span class="kw">const</span> { alarmName, state } = event.detail;
+  console.<span class="fn">log</span>(<span class="str">`Alarm ${alarmName} is now ${state.value}: ${state.reason}`</span>);
+  <span class="cmt">// e.g. hand off to an agent tool that pulls logs for the affected window</span>
+};</pre>
+
+<div class="callout eb">
+  <strong>Why this beats subscribing to an SNS topic for AWS-native events</strong>
+  There's no topic to create or wire the alarm to &mdash; every CloudWatch alarm's state change is already on the default event bus, for every alarm in the account, automatically. The rule's <code>eventPattern</code> does the filtering (down to matching one specific alarm's transition to <code>ALARM</code>) with no code and no separate SNS topic per alarm. This is usually the better default for anything already emitting events onto EventBridge &mdash; reach for SNS when you need fan-out to non-AWS endpoints or you're publishing your own custom application events.
+</div>
+
+<h2>2. SNS &rarr; Lambda &mdash; fan-out from one publisher</h2>
+
+<p><strong>SNS</strong> (see the previous lesson note) is push-based fan-out: publish once to a <strong>topic</strong>, every <strong>subscriber</strong> gets its own copy &mdash; a Lambda, an SQS queue, an email address, an HTTPS endpoint. For a CloudWatch alarm, you point the alarm's action directly at an SNS topic ARN; CloudWatch does the publishing for you.</p>
+
+<pre><span class="file-label">lib/alarm-routing-stack.ts — SNS instead of / alongside EventBridge</span>
+<span class="kw">import</span> * <span class="kw">as</span> sns <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-sns'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> subs <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-sns-subscriptions'</span>;
+<span class="kw">import</span> * <span class="kw">as</span> cloudwatch <span class="kw">from</span> <span class="str">'aws-cdk-lib/aws-cloudwatch'</span>;
+
+<span class="kw">const</span> topic = <span class="kw">new</span> sns.<span class="cls">Topic</span>(<span class="kw">this</span>, <span class="str">'AlarmTopic'</span>);
+topic.<span class="fn">addSubscription</span>(<span class="kw">new</span> subs.<span class="cls">LambdaSubscription</span>(fn));
+
+<span class="cmt">// wire an existing alarm's action to this topic</span>
+cloudwatch.<span class="cls">Alarm</span>.<span class="fn">fromAlarmArn</span>(<span class="kw">this</span>, <span class="str">'ExistingAlarm'</span>, <span class="str">'arn:aws:cloudwatch:...:alarm:finapp-api-5xx-rate-high'</span>);
+<span class="cmt">// (in practice: set alarmActions on the Alarm construct itself to topic.topicArn when you create it)</span></pre>
+
+<pre><span class="file-label">lambda/handle-alarm-sns/index.ts — SNS wraps the payload differently than EventBridge</span>
+<span class="kw">interface</span> <span class="cls">SnsEvent</span> {
+  Records: { Sns: { Message: <span class="cls">string</span> } }[];   <span class="cmt">// Message is a JSON *string*, not a parsed object</span>
+}
+
+<span class="kw">export const</span> <span class="fn">handler</span> = <span class="kw">async</span> (event: <span class="cls">SnsEvent</span>) => {
+  <span class="kw">for</span> (<span class="kw">const</span> record <span class="kw">of</span> event.Records) {
+    <span class="kw">const</span> alarm = JSON.<span class="fn">parse</span>(record.Sns.Message);   <span class="cmt">// { AlarmName, NewStateValue, NewStateReason, ... }</span>
+    console.<span class="fn">log</span>(<span class="str">`Alarm ${alarm.AlarmName} -> ${alarm.NewStateValue}: ${alarm.NewStateReason}`</span>);
+  }
+};</pre>
+
+<div class="callout sns">
+  <strong>The payload shape is different from EventBridge — check both</strong>
+  An EventBridge target Lambda receives the event already parsed as an object (<code>event.detail.state.value</code>). An SNS-triggered Lambda receives <code>event.Records[].Sns.Message</code> as a <strong>JSON string</strong> you must parse yourself, and the field names are CloudWatch's classic alarm-notification schema (<code>NewStateValue</code>, not <code>state.value</code>) &mdash; a different shape from the EventBridge event for the same underlying alarm. Mixing these up is the most common bug when switching between the two.
+</div>
+
+<h2>3. Direct API polling &mdash; ask, don't wait</h2>
+
+<p>Sometimes you don't want to react to a push at all &mdash; an agent tool invoked on demand ("what's the current status of X?"), a health-check script, or a game-day summary run after the fact. For that, call the CloudWatch APIs directly with the AWS SDK, on your own schedule.</p>
+
+<pre><span class="file-label">check-alarm.ts — DescribeAlarms, called on demand</span>
+<span class="kw">import</span> { CloudWatchClient, DescribeAlarmsCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/client-cloudwatch'</span>;
+
+<span class="kw">const</span> cw = <span class="kw">new</span> <span class="cls">CloudWatchClient</span>({});
+
+<span class="kw">export async function</span> <span class="fn">getAlarmState</span>(alarmName: <span class="cls">string</span>) {
+  <span class="kw">const</span> { MetricAlarms } = <span class="kw">await</span> cw.<span class="fn">send</span>(<span class="kw">new</span> DescribeAlarmsCommand({
+    AlarmNames: [alarmName],
+  }));
+  <span class="kw">return</span> MetricAlarms?.[<span class="num">0</span>];   <span class="cmt">// .StateValue, .StateReason, .StateUpdatedTimestamp</span>
+}</pre>
+
+<p>Pulling the logs from the affected window is a two-step, asynchronous API &mdash; you start a query, then poll for results:</p>
+
+<pre><span class="file-label">query-logs.ts — CloudWatch Logs Insights</span>
+<span class="kw">import</span> {
+  CloudWatchLogsClient, StartQueryCommand, GetQueryResultsCommand,
+} <span class="kw">from</span> <span class="str">'@aws-sdk/client-cloudwatch-logs'</span>;
+
+<span class="kw">const</span> logs = <span class="kw">new</span> <span class="cls">CloudWatchLogsClient</span>({});
+
+<span class="kw">export async function</span> <span class="fn">queryErrorLogs</span>(logGroup: <span class="cls">string</span>, sinceEpochSecs: <span class="cls">number</span>) {
+  <span class="kw">const</span> { queryId } = <span class="kw">await</span> logs.<span class="fn">send</span>(<span class="kw">new</span> StartQueryCommand({
+    logGroupName: logGroup,
+    startTime: sinceEpochSecs,
+    endTime: Math.<span class="fn">floor</span>(Date.<span class="fn">now</span>() / <span class="num">1000</span>),
+    queryString: <span class="str">'fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 50'</span>,
+  }));
+
+  <span class="cmt">// Logs Insights queries run asynchronously — poll until status is Complete</span>
+  <span class="kw">for</span> (<span class="kw">let</span> i = <span class="num">0</span>; i &lt; <span class="num">10</span>; i++) {
+    <span class="kw">await new</span> <span class="cls">Promise</span>(r => <span class="fn">setTimeout</span>(r, <span class="num">1000</span>));
+    <span class="kw">const</span> result = <span class="kw">await</span> logs.<span class="fn">send</span>(<span class="kw">new</span> GetQueryResultsCommand({ queryId }));
+    <span class="kw">if</span> (result.status === <span class="str">'Complete'</span>) <span class="kw">return</span> result.results;
+  }
+  <span class="kw">throw new</span> <span class="cls">Error</span>(<span class="str">'log query timed out'</span>);
+}</pre>
+
+<div class="callout api">
+  <strong>This is the shape of a Bedrock agent tool</strong>
+  Wrap <code>getAlarmState</code> and <code>queryErrorLogs</code> as the body of two Lambda tools behind an AgentCore Gateway (Lesson 16), and an agent can answer &ldquo;what happened to the API between 2 and 2:15pm?&rdquo; on demand &mdash; pulling the alarm's state and the matching error logs itself, without anyone having wired a push notification for that specific question in advance. Push (EventBridge/SNS) is for &ldquo;tell me the moment X happens&rdquo;; polling is for &ldquo;tell me what X's state is, right now, because I just asked.&rdquo;
+</div>
+
+<h2>IAM &mdash; least privilege per path</h2>
+
+<table>
+  <thead><tr><th>Path</th><th>Permissions the Lambda's execution role needs</th></tr></thead>
+  <tbody>
+    <tr><td>EventBridge target</td><td>None extra for receiving &mdash; EventBridge invokes the function directly via a resource-based permission (<code>lambda:InvokeFunction</code> granted <em>to</em> <code>events.amazonaws.com</code>, which CDK's <code>targets.LambdaFunction</code> wires automatically)</td></tr>
+    <tr><td>SNS subscriber</td><td>Same pattern &mdash; SNS is granted <code>lambda:InvokeFunction</code> on the function; the function itself needs no SNS permissions to <em>receive</em></td></tr>
+    <tr><td>Direct API polling</td><td><code>cloudwatch:DescribeAlarms</code>, <code>logs:StartQuery</code>, <code>logs:GetQueryResults</code> &mdash; scoped to the specific alarm ARNs / log group ARNs the tool actually queries, not <code>*</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Production checklist</h2>
+<ul class="checklist">
+  <li>EventBridge preferred over a per-alarm SNS topic for anything already emitting AWS-native events; SNS reserved for fan-out to non-AWS endpoints or your own published application events</li>
+  <li>EventBridge rules use <code>eventPattern</code> filtering to match only the specific alarm/state transition needed &mdash; not a catch-all rule with filtering logic pushed into the Lambda</li>
+  <li>SNS-vs-EventBridge payload shape difference documented and tested &mdash; <code>event.Records[].Sns.Message</code> (string, parse it) vs <code>event.detail</code> (already an object)</li>
+  <li>A dead-letter queue configured on both the EventBridge rule target and the SNS subscription, so a failed delivery isn't silently dropped</li>
+  <li>Direct-polling IAM scoped to specific alarm/log-group ARNs, never <code>cloudwatch:*</code>/<code>logs:*</code></li>
+  <li>Logs Insights queries bounded with a real time window and <code>limit</code> &mdash; an unbounded query against a busy log group is slow and expensive</li>
+  <li>CloudTrail on for all three paths, so &ldquo;who/what reacted to this alarm and when&rdquo; is answerable during an incident review</li>
+</ul>
+
+<!-- QUIZ -->
+<div class="quiz">
+  <h2>Knowledge Check</h2>
+  <p style="font-weight:normal; margin-bottom:1.2rem; color: var(--muted); font-size:0.9rem;">Four questions on EventBridge, SNS, and direct API polling.</p>
+
+  <div class="question" id="q1">
+    <p>1. You want a Lambda to react only when one specific CloudWatch alarm transitions to ALARM, with no other alarms triggering it. What's the simplest way?</p>
+    <div class="options">
+      <label><input type="radio" name="q1" value="a"> Create an SNS topic per possible alarm and subscribe the Lambda to only the right one</label>
+      <label><input type="radio" name="q1" value="b"> An EventBridge rule with an eventPattern matching that alarm's name and state value — no topic needed</label>
+      <label><input type="radio" name="q1" value="c"> Poll DescribeAlarms every second from inside the Lambda</label>
+      <label><input type="radio" name="q1" value="d"> Subscribe the Lambda to every alarm's notifications and filter with an if-statement</label>
+    </div>
+    <button class="check-btn" onclick="check('q1','b','Correct. Every alarm\'s state change is already on the default EventBridge bus automatically — an eventPattern filtering on alarmName and state.value does the matching with no code and no per-alarm topic to create.','Not quite. SNS works but needs a topic wired to that specific alarm; polling wastes calls and adds latency; and filtering inside the Lambda after subscribing to everything works but pushes filtering logic into code that EventBridge\'s pattern matching already does for free.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <div class="question" id="q2">
+    <p>2. Your Lambda is subscribed to an SNS topic that a CloudWatch alarm publishes to. How do you get the alarm name out of the incoming event?</p>
+    <div class="options">
+      <label><input type="radio" name="q2" value="a"> event.detail.alarmName, the same as an EventBridge target</label>
+      <label><input type="radio" name="q2" value="b"> JSON.parse(event.Records[0].Sns.Message).AlarmName — the message is a JSON string you parse yourself</label>
+      <label><input type="radio" name="q2" value="c"> event.AlarmName directly on the top-level event object</label>
+      <label><input type="radio" name="q2" value="d"> You must call DescribeAlarms yourself; SNS doesn't include the alarm name</label>
+    </div>
+    <button class="check-btn" onclick="check('q2','b','Correct. SNS wraps the payload in event.Records[].Sns.Message as a JSON string, using CloudWatch\'s classic notification field names (AlarmName, NewStateValue) — a different shape from the already-parsed event.detail object an EventBridge target receives for the same alarm.','Not quite. event.detail is the EventBridge shape, not SNS\'s. SNS delivers the message as a string inside event.Records[].Sns.Message that you must JSON.parse yourself — the alarm name is included, just nested and stringified differently.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <div class="question" id="q3">
+    <p>3. An agent tool needs to answer "what happened between 2:00 and 2:15pm?" when asked, not react automatically the moment something happens. Which of the three paths fits?</p>
+    <div class="options">
+      <label><input type="radio" name="q3" value="a"> EventBridge — push events for that time window</label>
+      <label><input type="radio" name="q3" value="b"> SNS — subscribe and buffer messages from that window</label>
+      <label><input type="radio" name="q3" value="c"> Direct API calls (DescribeAlarms + Logs Insights) — called on demand when the question is asked</label>
+      <label><input type="radio" name="q3" value="d"> None of these — this requires a custom database</label>
+    </div>
+    <button class="check-btn" onclick="check('q3','c','Correct. Push mechanisms (EventBridge, SNS) are for &quot;tell me the moment X happens&quot; — they don\'t answer an ad hoc question about a past window on demand. Direct API polling — DescribeAlarms for state, StartQuery/GetQueryResults for logs in that time range — is exactly the pull model this question needs.','Not quite. EventBridge and SNS are push-based and react to events as they occur; neither answers an arbitrary on-demand question about a specific past window. That is exactly what direct, parameterized API calls are for.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <div class="question" id="q4">
+    <p>4. Why does a CloudWatch Logs Insights query require polling GetQueryResults in a loop instead of getting results back from StartQuery directly?</p>
+    <div class="options">
+      <label><input type="radio" name="q4" value="a"> StartQuery is broken and always returns nothing</label>
+      <label><input type="radio" name="q4" value="b"> Logs Insights queries run asynchronously — StartQuery only returns a queryId, and you poll GetQueryResults until its status is Complete</label>
+      <label><input type="radio" name="q4" value="c"> AWS requires all API calls to be polled twice for security</label>
+      <label><input type="radio" name="q4" value="d"> It's only necessary when querying more than 50 log entries</label>
+    </div>
+    <button class="check-btn" onclick="check('q4','b','Correct. A Logs Insights query can scan a large volume of log data, so AWS made the API asynchronous: StartQuery kicks it off and returns a queryId immediately, and you poll GetQueryResults until the status flips to Complete — regardless of how much data is being scanned or returned.','Not quite. This isn\'t a security requirement or limited to large result sets — it\'s because the underlying query itself is asynchronous. StartQuery only starts the job; GetQueryResults is how you check on and retrieve it.')">Check</button>
+    <div class="feedback" id="q4-feedback"></div>
+  </div>
+</div>
+
+<div class="callout finance">
+  <strong>Lesson takeaway</strong>
+  Three different jobs, not three competing options: <strong>EventBridge</strong> pattern-matches AWS-native events (like a CloudWatch alarm state change) straight to a target with no topic and no code-based filtering &mdash; the right default for anything already emitting events. <strong>SNS &rarr; Lambda</strong> is push-based fan-out, best when you need multiple independent subscribers or non-AWS endpoints (email, SMS, webhooks); remember its payload is a JSON string in <code>event.Records[].Sns.Message</code>, a different shape from EventBridge's already-parsed <code>event.detail</code>. <strong>Direct API calls</strong> (<code>DescribeAlarms</code>, Logs Insights' <code>StartQuery</code>/<code>GetQueryResults</code>) are for pull, on-demand questions &mdash; exactly what an agent tool needs when asked about a specific window after the fact, rather than reacting to a live push. Scope IAM to specific ARNs for every path, and wire a DLQ on both push mechanisms so a failed delivery is never silent.
+</div>
+
+<div class="lesson-nav">
+  <a href="0010-sqs-lambda.html">&larr; L10: SQS + Lambda</a> &middot;
+  <a href="0011-cloudwatch.html">&larr; L11: CloudWatch</a> &middot;
+  <a href="0016-lambda-bedrock-agent-tools.html">&larr; L16: Lambda + Bedrock Agent Tools</a> &middot;
+  <a href="0022-fis-jmeter-resilience-load-testing.html">&larr; L22: AWS FIS &amp; JMeter</a><br><br>
+  <strong>Bonus lesson beyond the core 12-lesson series.</strong><br>
+  Explore next: EventBridge Scheduler for cron-style triggers &middot; EventBridge Pipes for point-to-point integration with transforms &middot; SNS message filtering policies for narrower fan-out &middot; Step Functions for multi-step, stateful reactions to an event<br><br>
+  <strong>Primary sources to read:</strong>
+  <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank">Amazon EventBridge User Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank">Amazon SNS Developer Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html" target="_blank">CloudWatch Logs Insights Query Syntax</a><br><br>
+  <strong>Ask your teacher anything that's unclear.</strong>
+</div>
+
+<footer>
+  Sources:
+  <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank">Amazon EventBridge User Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Events-Alarms.html" target="_blank">CloudWatch alarm state change events</a> &middot;
+  <a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank">Amazon SNS Developer Guide</a> &middot;
+  <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html" target="_blank">CloudWatch DescribeAlarms API</a> &middot;
+  <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html" target="_blank">CloudWatch Logs Insights Query Syntax</a>
+</footer>
+
+</article>
+
+<script>
+function check(qid, correctVal, correctMsg, wrongMsg) {
+  const selected = document.querySelector('input[name="' + qid + '"]:checked');
+  const feedback = document.getElementById(qid + '-feedback');
+  if (!selected) { feedback.textContent = 'Please select an answer.'; feedback.className = 'feedback wrong'; return; }
+  if (selected.value === correctVal) {
+    feedback.textContent = '✓ ' + correctMsg;
+    feedback.className = 'feedback correct';
+  } else {
+    feedback.textContent = '✗ ' + wrongMsg;
+    feedback.className = 'feedback wrong';
+  }
+}
+</script>
+</body>
+</html>
