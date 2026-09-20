@@ -279,6 +279,16 @@ app.<span class="fn">synth</span>();</pre>
   It synths your stack one more time, then calls CloudFormation's <code>DeleteStack</code> and walks every resource in reverse dependency order &mdash; deleting the Lambda before the table it reads from, for instance, mirroring the order they were created in. For each resource, CloudFormation checks the <strong>DeletionPolicy</strong> that your CDK <code>removalPolicy</code> compiled down to: <code>DESTROY</code> (CDK's default) maps to <code>Delete</code> &mdash; the resource is actually deleted, data and all; <code>RemovalPolicy.RETAIN</code> maps to <code>Retain</code> &mdash; the resource is detached from the stack but left running, orphaned, still billing; <code>RemovalPolicy.SNAPSHOT</code> (RDS, EBS) takes a final snapshot first, then deletes. This is exactly what the <code>[-/+]</code> replacement callouts elsewhere in this lesson are warning about &mdash; a replacement runs this same delete-then-recreate path on a single resource mid-deploy, not just on a full <code>destroy</code>.
 </div>
 
+<div class="callout info">
+  <strong>What <code>cdk watch</code> actually does</strong>
+  It's a dev-loop shortcut, not a fifth deployment mechanism: <code>cdk watch</code> deploys once normally, then monitors the files listed under <code>"watch"</code> in <code>cdk.json</code> (defaults to everything except <code>cdk.out</code>, <code>node_modules</code>, and similar) and, on save, tries a <strong>hotswap</strong> first &mdash; pushing just the changed Lambda code, Step Functions definition, or ECS task image straight to the running resource via its own service API (<code>UpdateFunctionCode</code>, etc.), skipping CloudFormation entirely. That's what makes it fast: seconds, not a full stack update. If the change isn't hotswap-eligible &mdash; a new resource, a changed IAM policy, a renamed construct &mdash; it falls back to a normal <code>cdk deploy</code> change set instead.
+</div>
+
+<div class="callout danger">
+  <strong>Hotswap is a dev tool, not a deploy path</strong>
+  A hotswap update bypasses CloudFormation, which means the stack's recorded template goes out of sync with what's actually running until the next real <code>cdk deploy</code> reconciles them &mdash; and it skips the safety checks CloudFormation would otherwise run (rollback on failure, drift tracking, `cdk diff` visibility). Use <code>cdk watch</code> for your own dev-loop iteration only; never in CI, and never as how staging or prod gets updated.
+</div>
+
 <h3>A typical change</h3>
 <div class="steps">
   <div class="step"><div class="step-num">1</div><div class="step-body"><p>Edit the stack code, add the new resource or property.</p></div></div>
