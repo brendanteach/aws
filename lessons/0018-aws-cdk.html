@@ -269,6 +269,11 @@ app.<span class="fn">synth</span>();</pre>
   <div><b>cdk destroy</b> &nbsp;&mdash; delete the stack. Resources with <code>RETAIN</code> removal policy survive.</div>
 </div>
 
+<div class="callout info">
+  <strong>What <code>cdk deploy</code> actually does</strong>
+  It's the one command in this list that changes real infrastructure, and it's really CloudFormation doing the work under the hood, in four steps: (1) synth your code, exactly like <code>cdk synth</code>; (2) upload any assets &mdash; Lambda zips, Docker images &mdash; to the bootstrap S3 bucket/ECR, keyed by content hash, so unchanged assets aren't re-uploaded; (3) submit the template to CloudFormation as a <strong>change set</strong> &mdash; a preview of exactly what CloudFormation intends to add/modify/remove, which is the same computation <code>cdk diff</code> shows you, just executed instead of only displayed; (4) execute the change set &mdash; CloudFormation calls the underlying service APIs (<code>CreateTable</code>, <code>CreateFunction</code>, etc.) to reconcile real resources to match, and if any step fails, it automatically <strong>rolls back</strong> the whole stack to its last good state. <code>--require-approval broadening</code> (the default) pauses for a manual yes/no before executing a change set that adds IAM or security-group permissions; <code>--require-approval never</code> skips that prompt, which is what an automated CI pipeline needs since nobody is there to type "y".
+</div>
+
 <h3>A typical change</h3>
 <div class="steps">
   <div class="step"><div class="step-num">1</div><div class="step-body"><p>Edit the stack code, add the new resource or property.</p></div></div>
