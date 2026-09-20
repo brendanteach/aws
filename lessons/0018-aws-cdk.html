@@ -405,6 +405,32 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
   The community edition emulates the common APIs well but not every service, IAM enforcement nuance, or quota behavior &mdash; it catches wiring bugs (wrong table name, malformed event, broken handler logic) cheaply, but a clean LocalStack deploy is not proof a real AWS deploy will behave identically. Keep a real staging account (step 4 of the six-command workflow above) as the final gate before prod.
 </div>
 
+<h2>The full pipeline &mdash; local, DEV, and QA</h2>
+
+<p>Putting the pieces above in order answers a question worth asking directly: <strong>unit tests are what you can run with zero AWS environment, but they're not the only thing you can run locally</strong> &mdash; LocalStack integration-tests real, deployed resources talking to each other, still with no real account. And no, you can't fully close the gap to a real AWS environment from local alone: LocalStack doesn't enforce IAM the way real AWS does and doesn't emulate every service perfectly, so a <strong>DEV</strong> account is still where you validate the last 10% &mdash; real IAM enforcement, real latency, real service quirks. The goal of everything before DEV is to make sure DEV is only ever validating that 10%, not re-discovering a typo.</p>
+
+<table>
+  <thead><tr><th>Stage</th><th>What runs</th><th>Needs real AWS?</th><th>Catches</th></tr></thead>
+  <tbody>
+    <tr><td>Every save</td><td><code>cdk synth</code>, <code>tsc --noEmit</code>, <code>eslint</code></td><td>No</td><td>Import errors, bad construct props, type errors</td></tr>
+    <tr><td>Every commit (local/CI)</td><td><code>jest</code> &mdash; assertion tests on the synthesized template + <code>aws-sdk-client-mock</code> handler unit tests</td><td>No</td><td>Missing encryption/PITR, wrong IAM actions granted, handler logic bugs</td></tr>
+    <tr><td>Every commit (local/CI)</td><td><code>cdk-nag</code> (AwsSolutions pack) during <code>synth</code></td><td>No</td><td>Compliance violations &mdash; public buckets, wildcard IAM, missing log retention</td></tr>
+    <tr><td>Optional, before pushing</td><td><code>cdklocal deploy</code> + an integration test suite against LocalStack</td><td>No (emulated)</td><td>Real wiring bugs between resources &mdash; wrong table name, broken grant, malformed event &mdash; cheaply, before spending a real deploy</td></tr>
+    <tr><td>On merge to main</td><td><code>cdk diff</code> (posted for review) &rarr; <code>cdk deploy</code> to a <strong>DEV</strong> account, then smoke/integration tests against the real deployed resources</td><td><strong>Yes</strong></td><td>The 10% LocalStack can't catch: real IAM enforcement, real latency, real service quirks</td></tr>
+    <tr><td>On DEV sign-off</td><td>Promote the <strong>same built artifact</strong> (never rebuild) with <code>cdk deploy -c env=qa</code> to a separate <strong>QA</strong> account, <code>cdk diff</code> reviewed again</td><td><strong>Yes</strong></td><td>Environment-specific config drift, anything DEV's smaller scale didn't surface</td></tr>
+  </tbody>
+</table>
+
+<div class="callout cdk">
+  <strong>Ephemeral per-PR stacks in DEV</strong>
+  If your DEV account can afford it, have CI deploy a throwaway stack per PR (<code>AgentTools-pr-123</code>) with a unique context value, run integration tests against it, then <code>cdk destroy</code> it once the PR closes. This gets you real-AWS validation <em>before</em> merge instead of after, without any of those PR stacks ever touching the shared, long-lived DEV stack.
+</div>
+
+<div class="callout danger">
+  <strong>A clean LocalStack run is a pre-DEV gate, not a DEV replacement</strong>
+  Never read "it deployed and passed integration tests on LocalStack" as "ready for QA." The first real signal that something is QA-ready is a passing DEV deploy plus its own integration tests against real AWS &mdash; LocalStack's job is to make that DEV deploy boring by catching everything cheaper beforehand.
+</div>
+
 <h2>CDK vs Terraform vs raw CloudFormation</h2>
 
 <table>
@@ -452,6 +478,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb scan --table-name Customers</p
   <li>Bootstrap stack version kept current; deploy role permissions scoped, not <code>AdministratorAccess</code>, once past initial setup</li>
   <li>Stateful resources (RDS, DynamoDB) in a separate long-lived stack from fast-changing compute, to limit blast radius</li>
   <li>Secrets and DB passwords referenced from Secrets Manager / SSM Parameter Store at deploy time &mdash; never hard-coded in stack code</li>
+  <li>The same built artifact promoted local &rarr; DEV &rarr; QA &rarr; prod &mdash; never rebuilt per environment &mdash; with LocalStack treated as a pre-DEV gate, not a DEV/QA replacement</li>
 </ul>
 
 <!-- QUIZ -->
