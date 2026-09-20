@@ -187,6 +187,26 @@
   </tbody>
 </table>
 
+<h3>Worked example: injecting a 5-minute Lambda delay</h3>
+
+<p><code>aws:lambda:invocation-add-delay</code> adds a configurable delay to a percentage of a function's invocations &mdash; a realistic way to ask &ldquo;what happens if a downstream dependency goes slow?&rdquo; But before wiring one up for 5 minutes specifically, decide what question you're actually asking, because the number interacts with limits from earlier lessons.</p>
+
+<table>
+  <thead><tr><th>Question</th><th>Why it matters before you run this</th></tr></thead>
+  <tbody>
+    <tr><td>Is the target Lambda's own timeout longer than 5 minutes?</td><td>If not (<a href="0021-lambda-local-dev-environments.html">Lesson 21</a>'s example used 10s), every delayed invocation just hits its own timeout and errors &mdash; you're testing &ldquo;this call always fails,&rdquo; not &ldquo;this call is slow but eventually succeeds.&rdquo; Both are valid tests; know which one you're running.</td></tr>
+    <tr><td>Is this Lambda behind API Gateway?</td><td>API Gateway's integration timeout caps at 29 seconds &mdash; callers see a 504 at 29s regardless of the 5-minute delay. The experiment would mostly be testing API Gateway's timeout behavior, not the full 5 minutes of slowness.</td></tr>
+    <tr><td>Is this Lambda SQS-triggered?</td><td>A visibility timeout not sized for the delay (<a href="0010-sqs-lambda.html">Lesson 10</a>'s 6&times;-timeout rule) means the message reappears mid-processing and gets picked up again &mdash; you'd be testing duplicate-processing behavior, possibly by accident.</td></tr>
+    <tr><td>What else shares this function's concurrency pool?</td><td>Invocations held open for 5 minutes each exhaust reserved/account concurrency fast, which can throttle <em>other</em> functions sharing the unreserved pool &mdash; a blast-radius leak outside the one function you targeted.</td></tr>
+    <tr><td>What will this cost?</td><td>You're billed for the full induced delay per invocation, times however many invocations get hit &mdash; keep the blast-radius percentage low (10% to start, per the callout below) specifically to bound this.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout eb">
+  <strong>Should an agent run this experiment, or just watch it?</strong>
+  Split the two roles and trust them differently. <strong>Observing and reporting</strong> &mdash; polling <code>DescribeAlarms</code> and querying Logs Insights for the affected window, then summarizing peak error rate, p99 latency, and time-to-recovery (<a href="0024-eventbridge-sns-api-polling.html">Lesson 24</a>) &mdash; is safe and genuinely useful, automating the &ldquo;someone reads the dashboard&rdquo; step below. <strong>Triggering the experiment</strong> is a production-impacting action and deserves more caution: if an agent gets that tool at all, scope it to a pre-approved template with a fixed blast-radius percentage and target it can only <em>start</em>, never author freely; staging only, never prod; and rely on a real CloudWatch-alarm stop condition as the actual safety net &mdash; not on the agent noticing something went wrong in time.
+</div>
+
 <div class="callout fis">
   <strong>Never run your first experiment in prod</strong>
   Start in staging, with a stop condition wired to a real alarm, a small blast radius (<code>COUNT(1)</code>, one AZ, 10% of a fleet), and someone watching a dashboard live. Only promote a proven-safe experiment to a scheduled "game day" in prod, with the whole on-call team aware in advance &mdash; chaos engineering builds confidence deliberately, it isn't meant to surprise anyone.
